@@ -1,7 +1,8 @@
 module Main where
 
 import Control.Monad.Trans (liftIO)
-import Data.List (sortBy)
+import Data.List (sortBy, findIndex)
+import Data.Maybe (fromMaybe)
 
 import qualified Brick.AttrMap as BA
 import qualified Brick.Main as BM
@@ -29,7 +30,10 @@ appVersion = "0.1.0"
 type SelectedIndex = Int
 type ResourceName = String
 data DirectionKey = UP | DOWN | LEFT | RIGHT deriving (Show)
-data UIMode = BROWSE | BROWSE_EMPTY | SORT deriving (Show)
+
+data GenericEditOptions = GERenameKey | GEAddKey | GEDeleteKey deriving (Show)
+data UIMode = BROWSE | BROWSE_EMPTY | GENERIC_EDIT GenericEditOptions | SORT deriving (Show)
+data ValidationResult = VRSuccess | VRIgnore | VRFailed T.Text
 
 data AppState = AppState {
   _plainNodes :: [PlainNode],
@@ -39,7 +43,9 @@ data AppState = AppState {
   _ekey :: EncryptionKey,
   _keysList :: BWL.GenericList ResourceName Vec.Vector PlainKey,
   _uiMode :: UIMode,
-  _sortPatternEditor :: BWE.Editor T.Text ResourceName
+  _sortPatternEditor :: BWE.Editor T.Text ResourceName,
+  _genericEditor :: BWE.Editor T.Text ResourceName,
+  _genericEditPrompt :: T.Text
 } deriving (Show)
 
 app :: BM.App AppState e ResourceName
@@ -75,11 +81,14 @@ listWidget s = BWL.renderList f True $ _keysList s
     minKeyLength = 20
     padSize      = max minKeyLength $ foldr (max . T.length . __key) 0 plainNodes
 
-sortWidget :: AppState -> BT.Widget ResourceName
-sortWidget s@AppState { _sortPatternEditor = editor, _uiMode = SORT } = BWC.hBox
+inputWidget :: AppState -> BT.Widget ResourceName
+inputWidget s@AppState { _sortPatternEditor = editor, _uiMode = SORT } = BWC.hBox
   [BWC.txt "Sort pattern: ", BWE.renderEditor f True editor]
   where f xs = BWC.withAttr "sortPatternText" $ BWC.txt $ T.concat xs
-sortWidget _ = BWC.txt ""
+inputWidget s@AppState { _genericEditor = editor, _genericEditPrompt = prompt, _uiMode = GENERIC_EDIT _ }
+  = BWC.hBox [BWC.txt prompt, BWE.renderEditor f True editor]
+  where f xs = BWC.withAttr "genericEditText" $ BWC.txt $ T.concat xs
+inputWidget _ = BWC.txt ""
 
 mainFrame :: AppState -> BT.Widget ResourceName
 mainFrame s = BWC.withBorderStyle BWBS.unicode $ BWB.borderWithLabel (BWC.txt "Stash") $ BWC.vBox
@@ -91,7 +100,7 @@ mainFrame s = BWC.withBorderStyle BWBS.unicode $ BWB.borderWithLabel (BWC.txt "S
   , BWB.hBorder
   , BWC.txtWrap selectedNodeValue
   , BWC.fill ' '
-  , sortWidget s
+  , inputWidget s
   ]
  where
   plainNodes        = _plainNodes s
@@ -156,27 +165,48 @@ editSelectedValue s = do
   DB.updateNode ekey (__id selectedNode) key newValue
   buildState pid si s
 
-renameSelectedNode :: AppState -> IO AppState
-renameSelectedNode s = do
-  let plainNodes              = _plainNodes s
+validateGenericEditInput :: AppState -> IO ValidationResult
+validateGenericEditInput s@AppState { _uiMode = GENERIC_EDIT GERenameKey } = do
+  let (selectedNode, _, _) = getSelected s
+  let currentKey           = __key selectedNode
+  let newKey = T.concat $ BWE.getEditContents $ _genericEditor s
+  let isConflictingKey k = Vec.elem k $ BWL.listElements $ _keysList s
+  case newKey of
+    x | x == T.empty || x == currentKey -> return VRIgnore
+    x | isConflictingKey x              -> return $ VRFailed $ T.concat
+      ["Name '", newKey, "' is taken. Try a different name for '", currentKey, "': "]
+    _ -> return VRSuccess
+validateGenericEditInput s@AppState { _uiMode = GENERIC_EDIT _ } = return VRIgnore
+
+renameSelectedKey :: AppState -> IO AppState
+renameSelectedKey s@AppState { _uiMode = GENERIC_EDIT GERenameKey } = do
+  let newKey = T.concat $ BWE.getEditContents $ _genericEditor s
   let (selectedNode, pid, si) = getSelected s
   let ekey                    = _ekey s
-  let key                     = __key selectedNode
+  let nid                     = __id selectedNode
   let value                   = __value selectedNode
-  let prompt = "Enter replacment for '" ++ T.unpack key ++ "' : "
-  let isConflictingKey k = Vec.elem k $ BWL.listElements $ _keysList s
-  let
-    validator input | T.pack input == key = return True
-    validator input | null input          = do
-      putStrLn "Invalid replacment. Please try again."
-      return False
-    validator input | isConflictingKey (T.pack input) = do
-      putStrLn "New key conflicts with existing key. Please enter a different name."
-      return False
-    validator _ = return True
-  newKey <- T.pack <$> IOUtils.readValidatedString prompt False validator
-  DB.updateNode ekey (__id selectedNode) newKey value
-  moveKeysList s 0
+  let findSelectedIndex xs x = fromMaybe 0 $ findIndex (\n -> __key n == x) xs
+  vresult <- validateGenericEditInput s
+  case vresult of
+    VRSuccess -> do
+      DB.updateNode ekey nid newKey value
+      newState <- buildState pid si $ switchToBrowseMode s
+      let newPlainNodes = _plainNodes newState
+      moveKeysList newState (findSelectedIndex newPlainNodes newKey)
+    VRIgnore         -> return $ switchToBrowseMode s
+    VRFailed message -> return s { _genericEditPrompt = message }
+
+prepareForRename :: AppState -> AppState
+prepareForRename s = s
+  { _uiMode            = GENERIC_EDIT GERenameKey
+  , _genericEditPrompt = prompt
+  , _genericEditor     = editor
+  }
+ where
+  (selectedNode, _, _) = getSelected s
+  k                    = __key selectedNode
+  prompt               = T.concat ["Rename '", k, "' to: "]
+  editor               = BWE.editor "genericEditor" (Just 1) ""
 
 handleEvent :: AppState -> BT.BrickEvent ResourceName e -> BT.EventM ResourceName (BT.Next AppState)
 handleEvent s@AppState { _uiMode = BROWSE_EMPTY } event@(BT.VtyEvent e) = handleSharedEvent s event
@@ -198,8 +228,8 @@ handleEvent s@AppState { _uiMode = BROWSE }       event@(BT.VtyEvent e) = case e
   V.EvKey (V.KChar 'd') [V.MCtrl] -> moveByPages s (0.5 :: Double)
   V.EvKey (V.KChar 'u') [V.MCtrl] -> moveByPages s (-0.5 :: Double)
   V.EvKey (V.KChar '/') []        -> BM.continue s { _uiMode = SORT }
-  V.EvKey (V.KChar 'r') []        -> BM.suspendAndResume $ renameSelectedNode s
-  V.EvKey (V.KChar ',') []        -> BM.suspendAndResume $ renameSelectedNode s
+  V.EvKey (V.KChar 'r') []        -> BM.continue $ prepareForRename s
+  V.EvKey (V.KChar ',') []        -> BM.continue $ prepareForRename s
   _                               -> handleSharedEvent s event
  where
   move s direction = do
@@ -228,16 +258,25 @@ handleEvent s@AppState { _uiMode = BROWSE }       event@(BT.VtyEvent e) = case e
     BM.continue newState
 handleEvent s@AppState { _uiMode = SORT, _sortPatternEditor = editor } event@(BT.VtyEvent e) =
   case e of
-    V.EvKey V.KEsc   [] -> switchMode
-    V.EvKey V.KEnter [] -> switchMode
+    V.EvKey V.KEsc   [] -> BM.continue $ switchToBrowseMode s
+    V.EvKey V.KEnter [] -> BM.continue $ switchToBrowseMode s
     _                   -> do
       editor   <- BWE.handleEditorEvent e editor
       newState <- liftIO $ moveKeysList s { _sortPatternEditor = editor } 0
       BM.continue newState
- where
-  switchMode = do
-    let mode = if null (_plainNodes s) then BROWSE_EMPTY else BROWSE
-    BM.continue s { _uiMode = mode }
+handleEvent s@AppState { _uiMode = GENERIC_EDIT GERenameKey, _genericEditor = editor } event@(BT.VtyEvent e)
+  = case e of
+    V.EvKey V.KEsc   [] -> BM.continue $ switchToBrowseMode s
+    V.EvKey V.KEnter [] -> do
+      newState <- liftIO $ renameSelectedKey s
+      BM.continue newState
+    _ -> do
+      editor <- BWE.handleEditorEvent e editor
+      BM.continue s { _genericEditor = editor }
+
+switchToBrowseMode :: AppState -> AppState
+switchToBrowseMode s = s { _uiMode = mode }
+  where mode = if null (_plainNodes s) then BROWSE_EMPTY else BROWSE
 
 moveKeysList :: AppState -> SelectedIndex -> IO AppState
 moveKeysList s si = do
@@ -291,6 +330,8 @@ buildInitialState = do
     , _keysList          = keysList $ map __key sortedPlainNodes
     , _uiMode            = if null sortedPlainNodes then BROWSE_EMPTY else BROWSE
     , _sortPatternEditor = BWE.editor "sortPatternEditor" (Just 1) ""
+    , _genericEditor     = BWE.editor "genericEditor" (Just 1) ""
+    , _genericEditPrompt = T.empty
     }
 
 buildState :: ParentId -> SelectedIndex -> AppState -> IO AppState
