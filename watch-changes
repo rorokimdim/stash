@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+
+latexmk -pvc -pdf -view=none --shell-escape -interaction=nonstopmode -synctex=1 -xelatex stash.tex
