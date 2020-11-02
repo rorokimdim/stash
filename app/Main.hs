@@ -19,7 +19,6 @@ import qualified Graphics.Vty as V
 import qualified Graphics.Vty.Attributes as VA
 import qualified Text.Fuzzy as TF
 
-import qualified Cipher
 import qualified DB
 import qualified IOUtils
 import Types

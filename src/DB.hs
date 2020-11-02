@@ -12,12 +12,7 @@ module DB
   )
 where
 
-import Control.Applicative
-import Control.Monad
 import Database.SQLite.Simple
-import Database.SQLite.Simple.FromRow
-import System.Environment (getEnv, setEnv)
-import System.IO.Error
 import Text.RawString.QQ
 
 import Types

@@ -10,7 +10,6 @@ import Control.Exception
 import Data.Maybe
 import System.Environment (getEnv, setEnv)
 
-import Data.ByteString (ByteString)
 import System.Console.Haskeline
 
 import qualified Data.Text as T
