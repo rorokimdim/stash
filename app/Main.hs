@@ -192,7 +192,9 @@ validateGenericEditInput s@AppState { _uiMode = GENERIC_EDIT GEAddChildKey } = d
     x | isConflictingKey x ->
       return $ VRFailed $ T.concat ["Name '", childKey, "' is taken. Try a different name: "]
     _ -> return VRSuccess
-validateGenericEditInput s@AppState { _uiMode = GENERIC_EDIT _ } = return VRIgnore
+validateGenericEditInput s@AppState { _uiMode = GENERIC_EDIT GEDeleteKey } = do
+  let response = T.concat $ BWE.getEditContents $ _genericEditor s
+  if response == "yes" then return VRSuccess else return VRIgnore
 
 renameSelectedKey :: AppState -> IO AppState
 renameSelectedKey s@AppState { _uiMode = GENERIC_EDIT GERenameKey } = do
@@ -248,6 +250,21 @@ addChildKey s@AppState { _uiMode = GENERIC_EDIT GEAddChildKey } = do
     VRIgnore         -> return $ switchToBrowseMode s
     VRFailed message -> return s { _genericEditPrompt = message }
 
+deleteKey :: AppState -> IO AppState
+deleteKey s@AppState { _uiMode = GENERIC_EDIT GEDeleteKey } = do
+  vresult <- validateGenericEditInput s
+  case vresult of
+    VRSuccess -> do
+      let (selectedNode, pid, sid) = getSelected s
+      let selectPath               = _selectPath s
+      let nid                      = __id selectedNode
+      idsToDelete <- DB.getIds nid
+      DB.deleteNodes idsToDelete
+      let newSelectedIndex = max 0 $ sid - 1
+      buildState pid newSelectedIndex
+        $ switchToBrowseMode s { _selectPath = init selectPath ++ [(pid, newSelectedIndex)] }
+    _ -> return $ switchToBrowseMode s
+
 prepareForRenameKey :: AppState -> AppState
 prepareForRenameKey s = s
   { _uiMode            = GENERIC_EDIT GERenameKey
@@ -280,6 +297,16 @@ prepareForAddChildKey s = s
   prompt = "New child key: "
   editor = BWE.editor "genericEditor" (Just 1) ""
 
+prepareForDeleteKey :: AppState -> AppState
+prepareForDeleteKey s = s
+  { _uiMode            = GENERIC_EDIT GEDeleteKey
+  , _genericEditPrompt = prompt
+  , _genericEditor     = editor
+  }
+ where
+  prompt = "Are you sure you want to delete selected key? Type 'yes' to delete: "
+  editor = BWE.editor "genericEditor" (Just 1) ""
+
 handleEvent :: AppState -> BT.BrickEvent ResourceName e -> BT.EventM ResourceName (BT.Next AppState)
 handleEvent s@AppState { _uiMode = BROWSE_EMPTY } event@(BT.VtyEvent e) = handleSharedEvent s event
 handleEvent s@AppState { _uiMode = BROWSE }       event@(BT.VtyEvent e) = case e of
@@ -304,6 +331,7 @@ handleEvent s@AppState { _uiMode = BROWSE }       event@(BT.VtyEvent e) = case e
   V.EvKey (V.KChar ',') []        -> BM.continue $ prepareForRenameKey s
   V.EvKey (V.KChar '+') []        -> BM.continue $ prepareForAddKey s
   V.EvKey (V.KChar '>') []        -> BM.continue $ prepareForAddChildKey s
+  V.EvKey (V.KChar '-') []        -> BM.continue $ prepareForDeleteKey s
   _                               -> handleSharedEvent s event
  where
   move s direction = do
@@ -361,6 +389,15 @@ handleEvent s@AppState { _uiMode = GENERIC_EDIT GEAddChildKey, _genericEditor = 
     V.EvKey V.KEsc   [] -> BM.continue $ switchToBrowseMode s
     V.EvKey V.KEnter [] -> do
       newState <- liftIO $ addChildKey s
+      BM.continue newState
+    _ -> do
+      editor <- BWE.handleEditorEvent e editor
+      BM.continue s { _genericEditor = editor }
+handleEvent s@AppState { _uiMode = GENERIC_EDIT GEDeleteKey, _genericEditor = editor } event@(BT.VtyEvent e)
+  = case e of
+    V.EvKey V.KEsc   [] -> BM.continue $ switchToBrowseMode s
+    V.EvKey V.KEnter [] -> do
+      newState <- liftIO $ deleteKey s
       BM.continue newState
     _ -> do
       editor <- BWE.handleEditorEvent e editor

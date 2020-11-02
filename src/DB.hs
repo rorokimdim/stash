@@ -2,6 +2,8 @@ module DB
   ( addNode
   , bootstrap
   , decryptNode
+  , deleteNodes
+  , getIds
   , getKeys
   , getNodes
   , getPath
@@ -13,6 +15,7 @@ module DB
   )
 where
 
+import Data.List (intercalate)
 import Database.SQLite.Simple
 import Text.RawString.QQ
 
@@ -26,6 +29,9 @@ instance FromRow Node where
     Node <$> field <*> field <*> field <*> field <*> field <*> field <*> field <*> field <*> field
 
 instance FromRow EncryptedKey where
+  fromRow = field
+
+instance FromRow NodeId where
   fromRow = field
 
 bootstrapSQL :: T.Text
@@ -206,6 +212,39 @@ getPath_ conn ekey nid = do
   |]
   keys <- query conn sql (Only nid) :: IO [EncryptedKey]
   mapM (decrypt ekey) $ reverse keys
+
+getIds :: NodeId -> IO [NodeId]
+getIds startNodeId = withConnection connectionString $ \conn -> getIds_ conn startNodeId
+
+getIds_ :: Connection -> NodeId -> IO [NodeId]
+getIds_ conn startNodeId = do
+  let
+    sql = [r|
+    WITH RECURSIVE f(id) AS (
+      SELECT
+        id
+      FROM
+        node
+      WHERE id=?
+      UNION ALL
+      SELECT
+        n.id
+      FROM
+        node n
+      INNER JOIN f ON n.parent=f.id
+    )
+    SELECT id FROM f
+  |]
+  query conn sql (Only startNodeId) :: IO [NodeId]
+
+deleteNodes :: [NodeId] -> IO ()
+deleteNodes nids = withConnection connectionString $ \conn -> deleteNodes_ conn nids
+
+deleteNodes_ :: Connection -> [NodeId] -> IO ()
+deleteNodes_ conn nids = do
+  let sqlList = intercalate ", " $ map show nids
+  let sql = T.concat ["DELETE FROM node WHERE id IN (", T.pack sqlList, ")"]
+  execute_ conn (Query sql)
 
 decryptNode :: EncryptionKey -> Node -> IO PlainNode
 decryptNode ekey n = do
