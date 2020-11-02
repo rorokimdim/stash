@@ -30,7 +30,7 @@ type SelectedIndex = Int
 type ResourceName = String
 data DirectionKey = UP | DOWN | LEFT | RIGHT deriving (Show)
 
-data GenericEditOptions = GERenameKey | GEAddKey | GEDeleteKey deriving (Show)
+data GenericEditOptions = GERenameKey | GEAddKey | GEAddChildKey | GEDeleteKey deriving (Show)
 data UIMode = BROWSE | BROWSE_EMPTY | GENERIC_EDIT GenericEditOptions | SORT deriving (Show)
 data ValidationResult = VRSuccess | VRIgnore | VRFailed T.Text
 
@@ -175,6 +175,23 @@ validateGenericEditInput s@AppState { _uiMode = GENERIC_EDIT GERenameKey } = do
     x | isConflictingKey x              -> return $ VRFailed $ T.concat
       ["Name '", newKey, "' is taken. Try a different name for '", currentKey, "': "]
     _ -> return VRSuccess
+validateGenericEditInput s@AppState { _uiMode = GENERIC_EDIT GEAddKey } = do
+  let newKey = T.concat $ BWE.getEditContents $ _genericEditor s
+  let isConflictingKey k = Vec.elem k $ BWL.listElements $ _keysList s
+  case newKey of
+    x | x == T.empty -> return VRIgnore
+    x | isConflictingKey x ->
+      return $ VRFailed $ T.concat ["Name '", newKey, "' is taken. Try a different name: "]
+    _ -> return VRSuccess
+validateGenericEditInput s@AppState { _uiMode = GENERIC_EDIT GEAddChildKey } = do
+  let childKey          = T.concat $ BWE.getEditContents $ _genericEditor s
+  let existingChildKeys = _selectedChildKeys s
+  let isConflictingKey k = k `elem` existingChildKeys
+  case childKey of
+    x | x == T.empty -> return VRIgnore
+    x | isConflictingKey x ->
+      return $ VRFailed $ T.concat ["Name '", childKey, "' is taken. Try a different name: "]
+    _ -> return VRSuccess
 validateGenericEditInput s@AppState { _uiMode = GENERIC_EDIT _ } = return VRIgnore
 
 renameSelectedKey :: AppState -> IO AppState
@@ -195,8 +212,44 @@ renameSelectedKey s@AppState { _uiMode = GENERIC_EDIT GERenameKey } = do
     VRIgnore         -> return $ switchToBrowseMode s
     VRFailed message -> return s { _genericEditPrompt = message }
 
-prepareForRename :: AppState -> AppState
-prepareForRename s = s
+addKey :: AppState -> IO AppState
+addKey s@AppState { _uiMode = GENERIC_EDIT GEAddKey } = do
+  let newKey = T.concat $ BWE.getEditContents $ _genericEditor s
+  let (_, pid, _) = getSelected s
+  let ekey        = _ekey s
+  let value       = T.empty
+  let findSelectedIndex xs x = fromMaybe 0 $ findIndex (\n -> __key n == x) xs
+  vresult <- validateGenericEditInput s
+  case vresult of
+    VRSuccess -> do
+      DB.addNode ekey pid newKey value
+      newState <- buildState pid 0 $ switchToBrowseMode s
+      let newPlainNodes = _plainNodes newState
+      moveKeysList newState (findSelectedIndex newPlainNodes newKey)
+    VRIgnore         -> return $ switchToBrowseMode s
+    VRFailed message -> return s { _genericEditPrompt = message }
+
+addChildKey :: AppState -> IO AppState
+addChildKey s@AppState { _uiMode = GENERIC_EDIT GEAddChildKey } = do
+  let childKey = T.concat $ BWE.getEditContents $ _genericEditor s
+  let (selectedNode, pid, _) = getSelected s
+  let nid                    = __id selectedNode
+  let ekey                   = _ekey s
+  let key                    = __key selectedNode
+  let value                  = T.empty
+  let findSelectedIndex xs x = fromMaybe 0 $ findIndex (\n -> __key n == x) xs
+  vresult <- validateGenericEditInput s
+  case vresult of
+    VRSuccess -> do
+      DB.addNode ekey nid childKey value
+      newState <- buildState pid 0 $ switchToBrowseMode s
+      let newPlainNodes = _plainNodes newState
+      moveKeysList newState (findSelectedIndex newPlainNodes key)
+    VRIgnore         -> return $ switchToBrowseMode s
+    VRFailed message -> return s { _genericEditPrompt = message }
+
+prepareForRenameKey :: AppState -> AppState
+prepareForRenameKey s = s
   { _uiMode            = GENERIC_EDIT GERenameKey
   , _genericEditPrompt = prompt
   , _genericEditor     = editor
@@ -206,6 +259,26 @@ prepareForRename s = s
   k                    = __key selectedNode
   prompt               = T.concat ["Rename '", k, "' to: "]
   editor               = BWE.editor "genericEditor" (Just 1) ""
+
+prepareForAddKey :: AppState -> AppState
+prepareForAddKey s = s
+  { _uiMode            = GENERIC_EDIT GEAddKey
+  , _genericEditPrompt = prompt
+  , _genericEditor     = editor
+  }
+ where
+  prompt = "New key: "
+  editor = BWE.editor "genericEditor" (Just 1) ""
+
+prepareForAddChildKey :: AppState -> AppState
+prepareForAddChildKey s = s
+  { _uiMode            = GENERIC_EDIT GEAddChildKey
+  , _genericEditPrompt = prompt
+  , _genericEditor     = editor
+  }
+ where
+  prompt = "New child key: "
+  editor = BWE.editor "genericEditor" (Just 1) ""
 
 handleEvent :: AppState -> BT.BrickEvent ResourceName e -> BT.EventM ResourceName (BT.Next AppState)
 handleEvent s@AppState { _uiMode = BROWSE_EMPTY } event@(BT.VtyEvent e) = handleSharedEvent s event
@@ -227,8 +300,10 @@ handleEvent s@AppState { _uiMode = BROWSE }       event@(BT.VtyEvent e) = case e
   V.EvKey (V.KChar 'd') [V.MCtrl] -> moveByPages s (0.5 :: Double)
   V.EvKey (V.KChar 'u') [V.MCtrl] -> moveByPages s (-0.5 :: Double)
   V.EvKey (V.KChar '/') []        -> BM.continue s { _uiMode = SORT }
-  V.EvKey (V.KChar 'r') []        -> BM.continue $ prepareForRename s
-  V.EvKey (V.KChar ',') []        -> BM.continue $ prepareForRename s
+  V.EvKey (V.KChar 'r') []        -> BM.continue $ prepareForRenameKey s
+  V.EvKey (V.KChar ',') []        -> BM.continue $ prepareForRenameKey s
+  V.EvKey (V.KChar '+') []        -> BM.continue $ prepareForAddKey s
+  V.EvKey (V.KChar '>') []        -> BM.continue $ prepareForAddChildKey s
   _                               -> handleSharedEvent s event
  where
   move s direction = do
@@ -268,6 +343,24 @@ handleEvent s@AppState { _uiMode = GENERIC_EDIT GERenameKey, _genericEditor = ed
     V.EvKey V.KEsc   [] -> BM.continue $ switchToBrowseMode s
     V.EvKey V.KEnter [] -> do
       newState <- liftIO $ renameSelectedKey s
+      BM.continue newState
+    _ -> do
+      editor <- BWE.handleEditorEvent e editor
+      BM.continue s { _genericEditor = editor }
+handleEvent s@AppState { _uiMode = GENERIC_EDIT GEAddKey, _genericEditor = editor } event@(BT.VtyEvent e)
+  = case e of
+    V.EvKey V.KEsc   [] -> BM.continue $ switchToBrowseMode s
+    V.EvKey V.KEnter [] -> do
+      newState <- liftIO $ addKey s
+      BM.continue newState
+    _ -> do
+      editor <- BWE.handleEditorEvent e editor
+      BM.continue s { _genericEditor = editor }
+handleEvent s@AppState { _uiMode = GENERIC_EDIT GEAddChildKey, _genericEditor = editor } event@(BT.VtyEvent e)
+  = case e of
+    V.EvKey V.KEsc   [] -> BM.continue $ switchToBrowseMode s
+    V.EvKey V.KEnter [] -> do
+      newState <- liftIO $ addChildKey s
       BM.continue newState
     _ -> do
       editor <- BWE.handleEditorEvent e editor

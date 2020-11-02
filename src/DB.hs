@@ -1,5 +1,6 @@
 module DB
-  ( bootstrap
+  ( addNode
+  , bootstrap
   , decryptNode
   , getKeys
   , getNodes
@@ -91,6 +92,22 @@ bootstrap = do
   let splits  = T.splitOn ";;" bootstrapSQL
   let queries = [ Query x | x <- splits ]
   withConnection connectionString $ \conn -> withTransaction conn $ mapM_ (execute_ conn) queries
+
+addNode :: EncryptionKey -> ParentId -> PlainKey -> PlainValue -> IO NodeId
+addNode ekey pid key value =
+  withConnection connectionString $ \conn -> addNode_ conn ekey pid key value
+
+addNode_ :: Connection -> EncryptionKey -> ParentId -> PlainKey -> PlainValue -> IO NodeId
+addNode_ conn ekey pid key value = do
+  encryptedKey   <- encrypt ekey key
+  encryptedValue <- encrypt ekey value
+  let hkey      = hash key
+  let hvalue    = hash value
+  let insertSQL = "INSERT INTO node (parent, hkey, hvalue, key, value) VALUES (?, ?, ?, ?, ?)"
+  execute conn (Query insertSQL) (pid, hkey, hvalue, encryptedKey, encryptedValue)
+  [Only nid] <-
+    query conn "SELECT id FROM node WHERE parent=? AND hkey=?" (pid, hkey) :: IO [Only NodeId]
+  return nid
 
 save :: EncryptionKey -> [PlainKey] -> PlainValue -> IO NodeId
 save ekey ks value = do
