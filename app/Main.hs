@@ -414,6 +414,7 @@ moveKeysList s si = do
   let selectPath = _selectPath s
   let (pid, _)   = last selectPath
   buildState pid si $ s { _selectPath = init selectPath ++ [(pid, si)] }
+  buildState pid si $ setSelectedIndex s si
 
 sortPlainNodes :: [PlainNode] -> T.Text -> [PlainNode]
 sortPlainNodes ns p = sortBy cmp ns
@@ -481,25 +482,37 @@ buildState pid si state = do
     }
 
 switchLeft :: AppState -> IO AppState
-switchLeft state = do
-  let selectPath = _selectPath state
-  if length selectPath == 1
-    then return state
-    else do
-      let newSelectPath = init selectPath
-      let (pid, si)     = last newSelectPath
-      buildState pid si $ state { _selectPath = newSelectPath }
+switchLeft s = do
+  let (newState, pid, si) = popSelectPath s
+  buildState pid si newState
 
 switchRight :: AppState -> IO AppState
-switchRight state = do
-  let plainNodes = _plainNodes state
-  let selectPath = _selectPath state
-  if null $ _selectedChildKeys state
-    then return state
+switchRight s = do
+  if null $ _selectedChildKeys s
+    then return s
     else do
-      let si  = snd $ last selectPath
-      let pid = __id $ plainNodes !! si
-      buildState pid 0 $ state { _selectPath = selectPath ++ [(pid, 0)] }
+      let (selectedNode, _, _) = getSelected s
+      let pid                  = __id selectedNode
+      buildState pid 0 $ pushSelectPath s pid 0
+
+pushSelectPath :: AppState -> ParentId -> SelectedIndex -> AppState
+pushSelectPath s pid si = s { _selectPath = newSelectPath }
+ where
+  currentSelectPath = _selectPath s
+  newSelectPath     = currentSelectPath ++ [(pid, 0)]
+
+popSelectPath :: AppState -> (AppState, ParentId, SelectedIndex)
+popSelectPath s = (s { _selectPath = newSelectPath }, pid, si)
+ where
+  selectPath    = _selectPath s
+  newSelectPath = if length selectPath == 1 then selectPath else init selectPath
+  (pid, si)     = last newSelectPath
+
+setSelectedIndex :: AppState -> SelectedIndex -> AppState
+setSelectedIndex s si = s { _selectPath = init selectPath ++ [(pid, si)] }
+ where
+  selectPath = _selectPath s
+  (pid, _)   = last selectPath
 
 main :: IO ()
 main = do
