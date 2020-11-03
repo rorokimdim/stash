@@ -60,7 +60,7 @@ app = BM.App
 
 getEncryptionKey :: IO EncryptionKey
 getEncryptionKey = do
-  IOUtils.getEnvWithPromptFallback "STASH_ENCRYPTION_KEY" "Enter encryption key: " True
+  IOUtils.getEnvWithPromptFallback "STASH_ENCRYPTION_KEY" "Enter encryption key: " True True
 
 pathWidget :: AppState -> BT.Widget ResourceName
 pathWidget state = BWC.withAttr "currentPath" $ BWC.txtWrap $ T.append ">> " $ T.intercalate
@@ -316,6 +316,8 @@ handleEvent s@AppState { _uiMode = BROWSE }       event@(BT.VtyEvent e) = case e
   V.EvKey V.KRight      []        -> move s RIGHT
   V.EvKey V.KUp         []        -> move s UP
   V.EvKey V.KDown       []        -> move s DOWN
+  V.EvKey (V.KChar 'p') [V.MCtrl] -> move s UP
+  V.EvKey (V.KChar 'n') [V.MCtrl] -> move s DOWN
   V.EvKey (V.KChar 'h') []        -> move s LEFT
   V.EvKey (V.KChar 'l') []        -> move s RIGHT
   V.EvKey (V.KChar 'k') []        -> move s UP

@@ -35,21 +35,35 @@ getEnvWithDefault name defaultValue = do
     Left  e   -> return defaultValue
     Right key -> return key
 
-getEnvWithPromptFallback :: String -> String -> Bool -> IO String
-getEnvWithPromptFallback name promptMessage mask = do
+getEnvWithPromptFallback :: String -> String -> Bool -> Bool -> IO String
+getEnvWithPromptFallback name promptMessage mask confirm = do
   value <- try $ getEnv name
   case (value :: Either IOError String) of
     Left e -> do
       putStrLn $ "☠️  " ++ name ++ " not set."
-      key <- readString promptMessage mask
-      setEnv name key
-      return key
+      key0 <- readString promptMessage mask
+      if confirm
+        then do
+          putStrLn $ "Please confirm again. " ++ promptMessage
+          key1 <- readString promptMessage mask
+          if key0 == key1
+            then do
+              updateEnv name key0
+            else do
+              putStrLn "Entries do not match. Please try again."
+              getEnvWithPromptFallback name promptMessage mask confirm
+        else do
+          updateEnv name key0
     Right key -> return key
+ where
+  updateEnv name key = do
+    setEnv name key
+    return key
 
 edit :: String -> T.Text -> IO T.Text
 edit fileExtension initialContent = do
   let template = TEditor.mkTemplate fileExtension
-  editorVar <- T.pack <$> getEnvWithPromptFallback "EDITOR" "Enter editor path: " False
+  editorVar <- T.pack <$> getEnvWithPromptFallback "EDITOR" "Enter editor path: " False False
   let editorCmdParts = T.words editorVar
   let editor = T.unpack $ if null editorCmdParts then "vim" else head editorCmdParts
   bytes <- TEditor.runSpecificEditor editor template $ TE.encodeUtf8 initialContent
