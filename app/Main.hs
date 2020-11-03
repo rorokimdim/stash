@@ -17,8 +17,10 @@ import qualified Data.Text as T
 import qualified Data.Vector as Vec
 import qualified Graphics.Vty as V
 import qualified Graphics.Vty.Attributes as VA
+import qualified Options.Applicative as O
 import qualified Text.Fuzzy as TF
 
+import qualified CommandParsers as C
 import qualified DB
 import qualified IOUtils
 import Types
@@ -514,8 +516,30 @@ setSelectedIndex s si = s { _selectPath = init selectPath ++ [(pid, si)] }
   selectPath = _selectPath s
   (pid, _)   = last selectPath
 
-main :: IO ()
-main = do
+browseTUI :: IO ()
+browseTUI = do
   initialState <- buildInitialState
   finalState   <- BM.defaultMain app initialState
   print "Goodbye!"
+
+dump :: IO ()
+dump = print "Dumping!"
+
+processCommand :: C.Command -> IO ()
+processCommand C.DumpCommand = do
+  dump
+processCommand (C.BrowseCommand C.BrowseFormatTUI) = do
+  browseTUI
+processCommand (C.BrowseCommand C.BrowseFormatOrg) = do
+  print "Browing as org file"
+
+main :: IO ()
+main = do
+  cmd <- O.customExecParser preferences opts
+  processCommand cmd
+ where
+  parser = O.subparser $ mconcat C.commands
+  opts   = O.info
+    (parser O.<**> O.helper)
+    (O.fullDesc <> O.progDesc "stash [browse | dump]" <> O.header ("Stash " ++ appVersion))
+  preferences = O.prefs (O.showHelpOnError <> O.showHelpOnEmpty)
