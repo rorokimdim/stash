@@ -3,6 +3,8 @@ module DB
   , bootstrap
   , decryptNode
   , deleteNodes
+  , getAllNodes
+  , getAllPlainNodes
   , getIds
   , getKeys
   , getNodes
@@ -99,9 +101,13 @@ bootstrap = do
   let queries = [ Query x | x <- splits ]
   withConnection connectionString $ \conn -> withTransaction conn $ mapM_ (execute_ conn) queries
 
+clean :: PlainKey -> PlainValue -> (PlainKey, PlainValue)
+clean k v = (T.strip k, T.strip v)
+
 addNode :: EncryptionKey -> ParentId -> PlainKey -> PlainValue -> IO NodeId
-addNode ekey pid key value =
-  withConnection connectionString $ \conn -> addNode_ conn ekey pid key value
+addNode ekey pid key value = do
+  let (cleanedKey, cleanedValue) = clean key value
+  withConnection connectionString $ \conn -> addNode_ conn ekey pid cleanedKey cleanedValue
 
 addNode_ :: Connection -> EncryptionKey -> ParentId -> PlainKey -> PlainValue -> IO NodeId
 addNode_ conn ekey pid key value = do
@@ -128,10 +134,11 @@ save_ conn ekey pid (k : ks) value = do
 
 saveSingle :: Connection -> EncryptionKey -> ParentId -> PlainKey -> PlainValue -> Bool -> IO NodeId
 saveSingle conn ekey pid key value overwrite = do
-  encryptedKey   <- encrypt ekey key
-  encryptedValue <- encrypt ekey value
-  let hkey   = hash key
-  let hvalue = hash value
+  let (cleanedKey, cleanedValue) = clean key value
+  encryptedKey   <- encrypt ekey cleanedKey
+  encryptedValue <- encrypt ekey cleanedValue
+  let hkey   = hash cleanedKey
+  let hvalue = hash cleanedValue
   let
     onConflictClause = if overwrite
       then "UPDATE SET hvalue=excluded.hvalue, value=excluded.value WHERE hvalue != excluded.hvalue"
@@ -147,8 +154,9 @@ saveSingle conn ekey pid key value overwrite = do
   return nid
 
 updateNode :: EncryptionKey -> NodeId -> PlainKey -> PlainValue -> IO ()
-updateNode ekey nid key value =
-  withConnection connectionString $ \conn -> updateNode_ conn ekey nid key value
+updateNode ekey nid key value = do
+  let (cleanedKey, cleanedValue) = clean key value
+  withConnection connectionString $ \conn -> updateNode_ conn ekey nid cleanedKey cleanedValue
 
 updateNode_ :: Connection -> EncryptionKey -> NodeId -> PlainKey -> PlainValue -> IO ()
 updateNode_ conn ekey nid key value = do
@@ -176,6 +184,19 @@ getNodes pid = do
 getNodes_ :: Connection -> ParentId -> IO [Node]
 getNodes_ conn pid = do
   query conn "SELECT * FROM node WHERE parent=?" (Only pid) :: IO [Node]
+
+getAllPlainNodes :: EncryptionKey -> IO [PlainNode]
+getAllPlainNodes ekey = do
+  nodes <- getAllNodes
+  mapM (decryptNode ekey) nodes
+
+getAllNodes :: IO [Node]
+getAllNodes = do
+  withConnection connectionString $ \conn -> getAllNodes_ conn
+
+getAllNodes_ :: Connection -> IO [Node]
+getAllNodes_ conn = do
+  query_ conn "SELECT * FROM node" :: IO [Node]
 
 getKeys :: ParentId -> IO [EncryptedKey]
 getKeys pid = do

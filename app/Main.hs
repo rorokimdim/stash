@@ -14,6 +14,7 @@ import qualified Brick.Widgets.Core as BWC
 import qualified Brick.Widgets.Edit as BWE
 import qualified Brick.Widgets.List as BWL
 import qualified Data.Text as T
+import qualified Data.Text.IO as TIO
 import qualified Data.Vector as Vec
 import qualified Graphics.Vty as V
 import qualified Graphics.Vty.Attributes as VA
@@ -23,6 +24,7 @@ import qualified Text.Fuzzy as TF
 import qualified CommandParsers as C
 import qualified DB
 import qualified IOUtils
+import qualified TextTransform
 import Types
 
 appVersion :: String
@@ -522,16 +524,28 @@ browseTUI = do
   finalState   <- BM.defaultMain app initialState
   print "Goodbye!"
 
-dump :: IO ()
-dump = print "Dumping!"
+dump :: C.DumpFormat -> IO ()
+dump C.DumpFormatOrg = do
+  ekey       <- getEncryptionKey
+  plainNodes <- DB.getAllPlainNodes ekey
+  TIO.putStrLn $ TextTransform.toOrgText plainNodes
+dump C.DumpFormatMarkdown = do
+  ekey       <- getEncryptionKey
+  plainNodes <- DB.getAllPlainNodes ekey
+  TIO.putStrLn $ TextTransform.toMarkdownText plainNodes
 
 processCommand :: C.Command -> IO ()
-processCommand C.DumpCommand = do
-  dump
 processCommand (C.BrowseCommand C.BrowseFormatTUI) = do
   browseTUI
-processCommand (C.BrowseCommand C.BrowseFormatOrg) = do
-  print "Browing as org file"
+processCommand (C.BrowseCommand format) = do
+  ekey       <- getEncryptionKey
+  plainNodes <- DB.getAllPlainNodes ekey
+  newText    <- case format of
+    C.BrowseFormatOrg      -> IOUtils.edit "org" $ TextTransform.toOrgText plainNodes
+    C.BrowseFormatMarkdown -> IOUtils.edit "md" $ TextTransform.toMarkdownText plainNodes
+  TIO.putStrLn newText
+processCommand (C.DumpCommand format) = do
+  dump format
 
 main :: IO ()
 main = do

@@ -1,34 +1,62 @@
 module CommandParsers
   ( BrowseFormat(..)
   , Command(..)
+  , DumpFormat(..)
   , commands
   )
 where
 
 import qualified Options.Applicative as O
 
-data BrowseFormat = BrowseFormatTUI | BrowseFormatOrg
+data BrowseFormat = BrowseFormatMarkdown | BrowseFormatOrg | BrowseFormatTUI
 instance Show BrowseFormat where
-  show BrowseFormatTUI = "tui"
-  show BrowseFormatOrg = "org"
+  show BrowseFormatMarkdown = "markdown"
+  show BrowseFormatOrg      = "org"
+  show BrowseFormatTUI      = "tui"
 
-data Command = DumpCommand | BrowseCommand { format :: BrowseFormat }
+data DumpFormat = DumpFormatMarkdown | DumpFormatOrg
+instance Show DumpFormat where
+  show DumpFormatMarkdown = "markdown"
+  show DumpFormatOrg      = "org"
+
+data Command = DumpCommand DumpFormat | BrowseCommand BrowseFormat
 
 browseFormatReader :: O.ReadM BrowseFormat
 browseFormatReader = O.eitherReader f
  where
-  f "tui" = Right BrowseFormatTUI
-  f "org" = Right BrowseFormatOrg
-  f x     = Left $ "Invalid browse format " ++ x
+  f "md"       = Right BrowseFormatMarkdown
+  f "markdown" = Right BrowseFormatMarkdown
+  f "org"      = Right BrowseFormatOrg
+  f "tui"      = Right BrowseFormatTUI
+  f x          = Left $ "Invalid browse format " ++ x
+
+dumpFormatReader :: O.ReadM DumpFormat
+dumpFormatReader = O.eitherReader f
+ where
+  f "md"       = Right DumpFormatMarkdown
+  f "markdown" = Right DumpFormatMarkdown
+  f "org"      = Right DumpFormatOrg
+  f x          = Left $ "Invalid dump format " ++ x
 
 browseCommandParser :: O.Parser Command
 browseCommandParser = BrowseCommand <$> O.option
   browseFormatReader
   (  O.long "format"
   <> O.short 'f'
-  <> O.metavar "tui | org"
+  <> O.metavar "markdown | org | tui"
   <> O.help "Browse format"
   <> O.value BrowseFormatTUI
+  <> O.showDefault
+  )
+
+dumpCommandParser :: O.Parser Command
+dumpCommandParser = DumpCommand <$> O.option
+  dumpFormatReader
+  (  O.long "format"
+  <> O.short 'f'
+  <> O.metavar "markdown | org"
+  <> O.help "Dump format"
+  <> O.value DumpFormatOrg
   <> O.showDefault
   )
 
@@ -47,4 +75,4 @@ buildParser xs = concat $ do
 
 commands :: [O.Mod O.CommandFields Command]
 commands = buildParser
-  [(["browse"], browseCommandParser, "Browse stash"), (["dump"], pure DumpCommand, "Dump stash")]
+  [(["browse"], browseCommandParser, "Browse stash"), (["dump"], dumpCommandParser, "Dump stash")]

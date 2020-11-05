@@ -37,6 +37,7 @@ dependencies:
 - tabl
 - text
 - time
+- unordered-containers
 - vector
 - vty
 
