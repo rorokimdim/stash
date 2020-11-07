@@ -28,7 +28,9 @@ dependencies:
 - crypto-simple
 - cryptonite
 - data-default
+- directory
 - editor-open
+- filepath
 - fuzzy
 - haskeline
 - mtl

@@ -3,6 +3,7 @@ module DB
   , bootstrap
   , decryptNode
   , deleteNodes
+  , doesDBExist
   , getAllNodes
   , getAllPlainNodes
   , getIds
@@ -17,9 +18,13 @@ module DB
   )
 where
 
+import System.FilePath.Posix (combine)
 import Data.List (intercalate)
 import Database.SQLite.Simple
+import System.Directory (doesFileExist)
 import Text.RawString.QQ
+
+import qualified IOUtils
 
 import Types
 import Cipher (encrypt, decrypt, hash)
@@ -92,13 +97,24 @@ BEGIN
 END
 |]
 
-connectionString :: String
-connectionString = ".stash"
+getDBPath :: IO String
+getDBPath = do
+  dir <- IOUtils.getStashDirectory
+  return $ combine dir "db"
+
+getConnectionString :: IO String
+getConnectionString = getDBPath
+
+doesDBExist :: IO Bool
+doesDBExist = do
+  dbPath <- getDBPath
+  doesFileExist dbPath
 
 bootstrap :: IO ()
 bootstrap = do
   let splits  = T.splitOn ";;" bootstrapSQL
   let queries = [ Query x | x <- splits ]
+  connectionString <- getConnectionString
   withConnection connectionString $ \conn -> withTransaction conn $ mapM_ (execute_ conn) queries
 
 clean :: PlainKey -> PlainValue -> (PlainKey, PlainValue)
@@ -107,6 +123,7 @@ clean k v = (T.strip k, T.strip v)
 addNode :: EncryptionKey -> ParentId -> PlainKey -> PlainValue -> IO NodeId
 addNode ekey pid key value = do
   let (cleanedKey, cleanedValue) = clean key value
+  connectionString <- getConnectionString
   withConnection connectionString $ \conn -> addNode_ conn ekey pid cleanedKey cleanedValue
 
 addNode_ :: Connection -> EncryptionKey -> ParentId -> PlainKey -> PlainValue -> IO NodeId
@@ -123,6 +140,7 @@ addNode_ conn ekey pid key value = do
 
 save :: EncryptionKey -> [PlainKey] -> PlainValue -> IO NodeId
 save ekey ks value = do
+  connectionString <- getConnectionString
   withConnection connectionString $ \conn -> withTransaction conn $ save_ conn ekey 0 ks value
 
 save_ :: Connection -> EncryptionKey -> ParentId -> [PlainKey] -> PlainValue -> IO NodeId
@@ -156,6 +174,7 @@ saveSingle conn ekey pid key value overwrite = do
 updateNode :: EncryptionKey -> NodeId -> PlainKey -> PlainValue -> IO ()
 updateNode ekey nid key value = do
   let (cleanedKey, cleanedValue) = clean key value
+  connectionString <- getConnectionString
   withConnection connectionString $ \conn -> updateNode_ conn ekey nid cleanedKey cleanedValue
 
 updateNode_ :: Connection -> EncryptionKey -> NodeId -> PlainKey -> PlainValue -> IO ()
@@ -179,6 +198,7 @@ getPlainKeys ekey pid = do
 
 getNodes :: ParentId -> IO [Node]
 getNodes pid = do
+  connectionString <- getConnectionString
   withConnection connectionString $ \conn -> getNodes_ conn pid
 
 getNodes_ :: Connection -> ParentId -> IO [Node]
@@ -192,6 +212,7 @@ getAllPlainNodes ekey = do
 
 getAllNodes :: IO [Node]
 getAllNodes = do
+  connectionString <- getConnectionString
   withConnection connectionString $ \conn -> getAllNodes_ conn
 
 getAllNodes_ :: Connection -> IO [Node]
@@ -200,6 +221,7 @@ getAllNodes_ conn = do
 
 getKeys :: ParentId -> IO [EncryptedKey]
 getKeys pid = do
+  connectionString <- getConnectionString
   withConnection connectionString $ \conn -> getKeys_ conn pid
 
 getKeys_ :: Connection -> ParentId -> IO [EncryptedKey]
@@ -208,6 +230,7 @@ getKeys_ conn pid = do
 
 getPath :: EncryptionKey -> NodeId -> IO [PlainKey]
 getPath ekey nid = do
+  connectionString <- getConnectionString
   withConnection connectionString $ \conn -> getPath_ conn ekey nid
 
 getPath_ :: Connection -> EncryptionKey -> NodeId -> IO [PlainKey]
@@ -235,7 +258,9 @@ getPath_ conn ekey nid = do
   mapM (decrypt ekey) $ reverse keys
 
 getIds :: NodeId -> IO [NodeId]
-getIds startNodeId = withConnection connectionString $ \conn -> getIds_ conn startNodeId
+getIds startNodeId = do
+  connectionString <- getConnectionString
+  withConnection connectionString $ \conn -> getIds_ conn startNodeId
 
 getIds_ :: Connection -> NodeId -> IO [NodeId]
 getIds_ conn startNodeId = do
@@ -259,7 +284,9 @@ getIds_ conn startNodeId = do
   query conn sql (Only startNodeId) :: IO [NodeId]
 
 deleteNodes :: [NodeId] -> IO ()
-deleteNodes nids = withConnection connectionString $ \conn -> deleteNodes_ conn nids
+deleteNodes nids = do
+  connectionString <- getConnectionString
+  withConnection connectionString $ \conn -> deleteNodes_ conn nids
 
 deleteNodes_ :: Connection -> [NodeId] -> IO ()
 deleteNodes_ conn nids = do
@@ -285,6 +312,7 @@ decryptNode ekey n = do
 
 retrieve :: EncryptionKey -> [PlainKey] -> IO (Maybe PlainValue)
 retrieve ekey ks = do
+  connectionString <- getConnectionString
   withConnection connectionString $ \conn -> retrieve_ conn ekey 0 ks
 
 retrieve_ :: Connection -> EncryptionKey -> ParentId -> [PlainKey] -> IO (Maybe PlainValue)

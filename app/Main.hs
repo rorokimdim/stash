@@ -1,6 +1,6 @@
 module Main where
 
-import Control.Monad (void)
+import Control.Monad (void, unless)
 import Control.Monad.Trans (liftIO)
 import Data.Default (def)
 import Data.List (sortBy, findIndex)
@@ -563,12 +563,24 @@ dump format = do
   plainNodes <- DB.getAllPlainNodes ekey
   TIO.putStrLn $ TextTransform.toText format plainNodes
 
+initialize :: IO ()
+initialize = do
+  dir <- IOUtils.createStashDirectoryIfNotExists
+  DB.bootstrap
+  putStrLn $ "Initialized stash in " ++ dir
+
 processCommand :: C.Command -> IO ()
-processCommand (C.BrowseCommand C.BrowseFormatTUI     ) = browseTUI
-processCommand (C.BrowseCommand C.BrowseFormatMarkdown) = browseText MarkdownText
-processCommand (C.BrowseCommand C.BrowseFormatOrg     ) = browseText OrgText
-processCommand (C.DumpCommand   C.DumpFormatMarkdown  ) = dump MarkdownText
-processCommand (C.DumpCommand   C.DumpFormatOrg       ) = dump OrgText
+processCommand C.InitCommand = initialize
+processCommand cmd           = do
+  dbExists <- DB.doesDBExist
+  unless dbExists $ do
+    fail "Not a stash directory. Try running: stash init"
+  case cmd of
+    C.BrowseCommand C.BrowseFormatTUI      -> browseTUI
+    C.BrowseCommand C.BrowseFormatMarkdown -> browseText MarkdownText
+    C.BrowseCommand C.BrowseFormatOrg      -> browseText OrgText
+    C.DumpCommand   C.DumpFormatMarkdown   -> dump MarkdownText
+    C.DumpCommand   C.DumpFormatOrg        -> dump OrgText
 
 main :: IO ()
 main = do

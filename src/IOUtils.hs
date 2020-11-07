@@ -1,7 +1,9 @@
 module IOUtils
-  ( edit
+  ( createStashDirectoryIfNotExists
+  , edit
   , getEnvWithDefault
   , getEnvWithPromptFallback
+  , getStashDirectory
   , readString
   , readValidatedString
   , readYesNo
@@ -15,7 +17,19 @@ import System.Console.Haskeline
 
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
+import qualified System.Directory as Directory
 import qualified Text.Editor as TEditor
+
+getStashDirectory :: IO String
+getStashDirectory = do
+  dir <- getEnvWithDefault "STASH_DIRECTORY" ".stash"
+  Directory.makeAbsolute dir
+
+createStashDirectoryIfNotExists :: IO String
+createStashDirectoryIfNotExists = do
+  dir <- getStashDirectory
+  Directory.createDirectoryIfMissing True dir
+  return dir
 
 readString :: String -> Bool -> IO String
 readString prompt mask = runInputT defaultSettings $ do

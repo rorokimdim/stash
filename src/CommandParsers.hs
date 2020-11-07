@@ -6,6 +6,8 @@ module CommandParsers
   )
 where
 
+import Types
+
 import qualified Options.Applicative as O
 
 data BrowseFormat = BrowseFormatMarkdown | BrowseFormatOrg | BrowseFormatTUI
@@ -19,7 +21,7 @@ instance Show DumpFormat where
   show DumpFormatMarkdown = "markdown"
   show DumpFormatOrg      = "org"
 
-data Command = DumpCommand DumpFormat | BrowseCommand BrowseFormat
+data Command = DumpCommand DumpFormat | BrowseCommand BrowseFormat | InitCommand
 
 browseFormatReader :: O.ReadM BrowseFormat
 browseFormatReader = O.eitherReader f
@@ -60,6 +62,9 @@ dumpCommandParser = DumpCommand <$> O.option
   <> O.showDefault
   )
 
+initCommandParser :: O.Parser Command
+initCommandParser = pure InitCommand
+
 type CommandAlias = String
 type CommandDescription = String
 buildParser
@@ -75,4 +80,7 @@ buildParser xs = concat $ do
 
 commands :: [O.Mod O.CommandFields Command]
 commands = buildParser
-  [(["browse"], browseCommandParser, "Browse stash"), (["dump"], dumpCommandParser, "Dump stash")]
+  [ (["browse"], browseCommandParser, "Browse stash")
+  , (["dump"]  , dumpCommandParser  , "Dump stash")
+  , (["init"]  , initCommandParser  , "Initialize stash in current directory")
+  ]
