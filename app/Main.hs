@@ -1,6 +1,8 @@
 module Main where
 
+import Control.Monad (void)
 import Control.Monad.Trans (liftIO)
+import Data.Default (def)
 import Data.List (sortBy, findIndex)
 import Data.Maybe (fromMaybe)
 
@@ -13,12 +15,14 @@ import qualified Brick.Widgets.Border.Style as BWBS
 import qualified Brick.Widgets.Core as BWC
 import qualified Brick.Widgets.Edit as BWE
 import qualified Brick.Widgets.List as BWL
+import qualified Data.HashMap.Strict as HM
 import qualified Data.Text as T
 import qualified Data.Text.IO as TIO
 import qualified Data.Vector as Vec
 import qualified Graphics.Vty as V
 import qualified Graphics.Vty.Attributes as VA
 import qualified Options.Applicative as O
+import qualified Pretty.Diff as Diff
 import qualified Text.Fuzzy as TF
 
 import qualified CommandParsers as C
@@ -524,28 +528,47 @@ browseTUI = do
   finalState   <- BM.defaultMain app initialState
   print "Goodbye!"
 
-dump :: C.DumpFormat -> IO ()
-dump C.DumpFormatOrg = do
+printDiff :: T.Text -> T.Text -> IO ()
+printDiff t1 t2 = TIO.putStrLn $ Diff.pretty def { Diff.separatorText = Just "changes to" } t1 t2
+
+browseText :: TextFormat -> IO ()
+browseText format = do
   ekey       <- getEncryptionKey
   plainNodes <- DB.getAllPlainNodes ekey
-  TIO.putStrLn $ TextTransform.toOrgText plainNodes
-dump C.DumpFormatMarkdown = do
+  let oldText = TextTransform.toText format plainNodes
+  newText <- case format of
+    OrgText      -> IOUtils.edit "org" oldText
+    MarkdownText -> IOUtils.edit "md" oldText
+  let lmap = HM.fromList [ ((__parent n, __key n), n) | n <- plainNodes ]
+  let
+    lookup pid (k : ks) = case HM.lookup (pid, k) lmap of
+      Nothing -> Nothing
+      Just n  -> if null ks then Just n else lookup (__id n) ks
+  let
+    walker ks body = do
+      case lookup 0 ks of
+        Nothing -> void $ DB.save ekey ks body
+        Just n  -> if __value n /= body
+          then do
+            TIO.putStrLn $ T.concat ["Value of [", T.intercalate " > " ks, "] differ:"]
+            printDiff (__value n) body
+            accept <- IOUtils.readYesNo "Accept this change? (yes/y/no/n): "
+            if accept then void $ DB.save ekey ks body else putStrLn "Ok, discarding change."
+          else pure ()
+  TextTransform.walkText format newText walker
+
+dump :: TextFormat -> IO ()
+dump format = do
   ekey       <- getEncryptionKey
   plainNodes <- DB.getAllPlainNodes ekey
-  TIO.putStrLn $ TextTransform.toMarkdownText plainNodes
+  TIO.putStrLn $ TextTransform.toText format plainNodes
 
 processCommand :: C.Command -> IO ()
-processCommand (C.BrowseCommand C.BrowseFormatTUI) = do
-  browseTUI
-processCommand (C.BrowseCommand format) = do
-  ekey       <- getEncryptionKey
-  plainNodes <- DB.getAllPlainNodes ekey
-  newText    <- case format of
-    C.BrowseFormatOrg      -> IOUtils.edit "org" $ TextTransform.toOrgText plainNodes
-    C.BrowseFormatMarkdown -> IOUtils.edit "md" $ TextTransform.toMarkdownText plainNodes
-  TIO.putStrLn newText
-processCommand (C.DumpCommand format) = do
-  dump format
+processCommand (C.BrowseCommand C.BrowseFormatTUI     ) = browseTUI
+processCommand (C.BrowseCommand C.BrowseFormatMarkdown) = browseText MarkdownText
+processCommand (C.BrowseCommand C.BrowseFormatOrg     ) = browseText OrgText
+processCommand (C.DumpCommand   C.DumpFormatMarkdown  ) = dump MarkdownText
+processCommand (C.DumpCommand   C.DumpFormatOrg       ) = dump OrgText
 
 main :: IO ()
 main = do

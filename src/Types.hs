@@ -13,6 +13,8 @@ type ParentId = Integer
 type PlainKey = T.Text
 type PlainValue = T.Text
 
+data TextFormat = OrgText | MarkdownText
+
 data Node = Node {
   _id :: NodeId,
   _parent :: NodeId,
@@ -36,9 +38,3 @@ data PlainNode = PlainNode {
   __created :: UTCTime,
   __modified :: UTCTime
 } deriving (Show)
-
-instance Eq PlainNode where
-  PlainNode { __id = id1 } == PlainNode { __id = id2 } = id1 == id2
-
-instance Ord PlainNode where
-  PlainNode { __id = id1 } `compare` PlainNode { __id = id2 } = id1 `compare` id2

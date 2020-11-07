@@ -4,6 +4,7 @@ module IOUtils
   , getEnvWithPromptFallback
   , readString
   , readValidatedString
+  , readYesNo
   )
 where
 import Control.Exception
@@ -27,6 +28,18 @@ readValidatedString prompt mask validator = do
   line  <- readString prompt mask
   valid <- validator line
   if valid then return line else readValidatedString prompt mask validator
+
+readYesNo :: String -> IO Bool
+readYesNo prompt = do
+  let
+    validtor x = do
+      if x `elem` ["y", "yes", "n", "no"]
+        then return True
+        else do
+          putStrLn "Invalid response. Must be one of yes/y/no/n."
+          return False
+  response <- readValidatedString prompt False validtor
+  return $ response `elem` ["y", "yes"]
 
 getEnvWithDefault :: String -> String -> IO String
 getEnvWithDefault name defaultValue = do

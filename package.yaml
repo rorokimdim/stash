@@ -27,11 +27,13 @@ dependencies:
 - bytestring
 - crypto-simple
 - cryptonite
+- data-default
 - editor-open
 - fuzzy
 - haskeline
 - mtl
 - optparse-applicative
+- pretty-diff
 - raw-strings-qq
 - sqlite-simple
 - tabl

@@ -19,6 +19,13 @@ packages:
   original:
     hackage: direct-sqlite-2.3.26
 - completed:
+    hackage: pretty-diff-0.2.0.2@sha256:02d2572475df7ecb86450e35087022d20fb3e2bcefcc1bea3c67c27d5d2d7be0,1493
+    pantry-tree:
+      size: 321
+      sha256: b6fd714cb3d31d4f787d65633d0d10a2cd50885529b5e75c1aa3dad5da81eced
+  original:
+    hackage: pretty-diff-0.2.0.2
+- completed:
     hackage: sqlite-simple-0.4.18.0@sha256:3ceea56375c0a3590c814e411a4eb86943f8d31b93b110ca159c90689b6b39e5,3002
     pantry-tree:
       size: 1930
