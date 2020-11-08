@@ -5,8 +5,9 @@ module IOUtils
   , getEnvWithPromptFallback
   , getStashDirectory
   , readString
+  , readUserResponseYesNo
   , readValidatedString
-  , readYesNo
+  , UserResponseYesNo(..)
   )
 where
 import Control.Exception
@@ -19,6 +20,8 @@ import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
 import qualified System.Directory as Directory
 import qualified Text.Editor as TEditor
+
+data UserResponseYesNo = URYes | URNo | URYesToAll | URNoToAll deriving (Eq, Show)
 
 getStashDirectory :: IO String
 getStashDirectory = do
@@ -43,17 +46,23 @@ readValidatedString prompt mask validator = do
   valid <- validator line
   if valid then return line else readValidatedString prompt mask validator
 
-readYesNo :: String -> IO Bool
-readYesNo prompt = do
+readUserResponseYesNo :: String -> IO UserResponseYesNo
+readUserResponseYesNo prompt = do
   let
     validtor x = do
-      if x `elem` ["y", "yes", "n", "no"]
+      if x `elem` ["y", "yes", "n", "no", "yes-to-all", "no-to-all"]
         then return True
         else do
-          putStrLn "Invalid response. Must be one of yes/y/no/n."
+          putStrLn "Invalid response. Must be one of yes/y/no/n/yes-to-all/no-to-all."
           return False
-  response <- readValidatedString prompt False validtor
-  return $ response `elem` ["y", "yes"]
+  response <- readValidatedString (prompt ++ " (yes/y/no/yes-to-all/no-to-all): ") False validtor
+  return $ case response of
+    "y"          -> URYes
+    "yes"        -> URYes
+    "n"          -> URNo
+    "no"         -> URNo
+    "yes-to-all" -> URYesToAll
+    "no-to-all"  -> URNoToAll
 
 getEnvWithDefault :: String -> String -> IO String
 getEnvWithDefault name defaultValue = do

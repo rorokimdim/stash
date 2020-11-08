@@ -16,6 +16,8 @@ import qualified Brick.Widgets.Core as BWC
 import qualified Brick.Widgets.Edit as BWE
 import qualified Brick.Widgets.List as BWL
 import qualified Data.HashMap.Strict as HM
+import qualified Data.HashSet as Set
+import qualified Data.IORef as IORef
 import qualified Data.Text as T
 import qualified Data.Text.IO as TIO
 import qualified Data.Vector as Vec
@@ -148,8 +150,10 @@ handleArrowKey direction state = do
 handleSharedEvent
   :: AppState -> BT.BrickEvent ResourceName e -> BT.EventM ResourceName (BT.Next AppState)
 handleSharedEvent s event@(BT.VtyEvent e) = case e of
-  V.EvKey V.KEsc [] -> BM.halt s
-  _                 -> BM.continue s
+  V.EvKey V.KEsc        [] -> BM.halt s
+  V.EvKey (V.KChar 'q') [] -> BM.halt s
+  V.EvKey (V.KChar '+') [] -> BM.continue $ prepareForAddKey s
+  _                        -> BM.continue s
 
 getSelected :: AppState -> (PlainNode, ParentId, SelectedIndex)
 getSelected s = (plainNodes !! si, pid, si)
@@ -225,15 +229,16 @@ renameSelectedKey s@AppState { _uiMode = GENERIC_EDIT GERenameKey } = do
 addKey :: AppState -> IO AppState
 addKey s@AppState { _uiMode = GENERIC_EDIT GEAddKey } = do
   let newKey = T.concat $ BWE.getEditContents $ _genericEditor s
-  let (_, pid, _) = getSelected s
-  let ekey        = _ekey s
-  let value       = T.empty
+  let isEmpty = null $ _plainNodes s
+  let pid = if isEmpty then 0 else pid where (_, pid, _) = getSelected s
+  let ekey    = _ekey s
+  let value   = T.empty
   let findSelectedIndex xs x = fromMaybe 0 $ findIndex (\n -> __key n == x) xs
   vresult <- validateGenericEditInput s
   case vresult of
     VRSuccess -> do
       DB.addNode ekey pid newKey value
-      newState <- buildState pid 0 $ switchToBrowseMode s
+      newState <- if isEmpty then buildInitialState else buildState pid 0 $ switchToBrowseMode s
       let newPlainNodes = _plainNodes newState
       moveKeysList newState (findSelectedIndex newPlainNodes newKey)
     VRIgnore         -> return $ switchToBrowseMode s
@@ -415,7 +420,7 @@ handleEvent s@AppState { _uiMode = GENERIC_EDIT GEDeleteKey, _genericEditor = ed
 
 switchToBrowseMode :: AppState -> AppState
 switchToBrowseMode s = s { _uiMode = mode }
-  where mode = if null (_plainNodes s) then BROWSE_EMPTY else BROWSE
+  where mode = if (null . _plainNodes) s then BROWSE_EMPTY else BROWSE
 
 moveKeysList :: AppState -> SelectedIndex -> IO AppState
 moveKeysList s si = do
@@ -525,37 +530,87 @@ setSelectedIndex s si = s { _selectPath = init selectPath ++ [(pid, si)] }
 browseTUI :: IO ()
 browseTUI = do
   initialState <- buildInitialState
-  finalState   <- BM.defaultMain app initialState
-  print "Goodbye!"
+  void $ BM.defaultMain app initialState
 
 printDiff :: T.Text -> T.Text -> IO ()
 printDiff t1 t2 = TIO.putStrLn $ Diff.pretty def { Diff.separatorText = Just "changes to" } t1 t2
+
+deleteInteractively :: [PlainNode] -> Bool -> IO ()
+deleteInteractively []       _     = return ()
+deleteInteractively (n : ns) False = do
+  DB.deleteNodes [__id n]
+  deleteInteractively ns False
+deleteInteractively (n : ns) True = do
+  let nid = __id n
+  ekey <- getEncryptionKey
+  keys <- DB.getPath ekey nid
+  TIO.putStrLn $ T.concat
+    ["The following item was marked for deletion:\n> ", T.intercalate " > " keys, "\n", __value n]
+  userResponse <- IOUtils.readUserResponseYesNo "Are you sure you want to delete?"
+  case userResponse of
+    IOUtils.URYes -> do
+      DB.deleteNodes [nid]
+      deleteInteractively ns True
+    IOUtils.URNo       -> putStrLn "Ok, skipping delete."
+    IOUtils.URNoToAll  -> putStrLn "Ok, skipping any more deletes."
+    IOUtils.URYesToAll -> deleteInteractively (n : ns) False
 
 browseText :: TextFormat -> IO ()
 browseText format = do
   ekey       <- getEncryptionKey
   plainNodes <- DB.getAllPlainNodes ekey
+  let nodeIds = [ __id n | n <- plainNodes ]
   let oldText = TextTransform.toText format plainNodes
-  newText <- case format of
+
+  lastUserResponseRef <- IORef.newIORef IOUtils.URNo
+
+  newText             <- case format of
     OrgText      -> IOUtils.edit "org" oldText
     MarkdownText -> IOUtils.edit "md" oldText
-  let lmap = HM.fromList [ ((__parent n, __key n), n) | n <- plainNodes ]
   let
+    lmap = HM.fromList [ ((__parent n, __key n), n) | n <- plainNodes ]
     lookup pid (k : ks) = case HM.lookup (pid, k) lmap of
       Nothing -> Nothing
       Just n  -> if null ks then Just n else lookup (__id n) ks
-  let
-    walker ks body = do
+    walker :: [NodeId] -> [PlainKey] -> PlainValue -> IO [NodeId]
+    walker nids ks body = do
       case lookup 0 ks of
-        Nothing -> void $ DB.save ekey ks body
-        Just n  -> if __value n /= body
+        Nothing -> do
+          ids <- DB.save ekey ks body
+          return $ ids ++ nids
+        Just n -> if __value n /= body
           then do
-            TIO.putStrLn $ T.concat ["Value of [", T.intercalate " > " ks, "] differ:"]
-            printDiff (__value n) body
-            accept <- IOUtils.readYesNo "Accept this change? (yes/y/no/n): "
-            if accept then void $ DB.save ekey ks body else putStrLn "Ok, discarding change."
-          else pure ()
-  TextTransform.walkText format newText walker
+            lastUserResponse <- IORef.readIORef lastUserResponseRef
+            case lastUserResponse of
+              IOUtils.URYesToAll -> do
+                ids <- DB.save ekey ks body
+                return $ ids ++ nids
+              IOUtils.URNoToAll -> return nodeIds
+              _                 -> do
+                let oldBody = __value n
+                TIO.putStrLn $ T.concat ["Value of [", T.intercalate " > " ks, "] differ:"]
+                printDiff oldBody body
+
+                userResponse <- IOUtils.readUserResponseYesNo "Accept this change?"
+                IORef.writeIORef lastUserResponseRef userResponse
+
+                let
+                  handleUserResponse r | r `elem` [IOUtils.URYes, IOUtils.URYesToAll] = do
+                    ids <- DB.save ekey ks body
+                    return $ ids ++ nids
+                  handleUserResponse r | r `elem` [IOUtils.URNo, IOUtils.URNoToAll] = do
+                    ids <- DB.getIdsInPath ks
+                    return $ ids ++ nids
+
+                handleUserResponse userResponse
+          else do
+            ids <- DB.save ekey ks body
+            return $ ids ++ nids
+
+  processedNodeIds <- Set.fromList <$> TextTransform.walkText [] format newText walker
+  let deletedNodeIds = Set.fromList [ x | x <- nodeIds, not $ Set.member x processedNodeIds ]
+  unless (null deletedNodeIds) $ do
+    deleteInteractively [ n | n <- plainNodes, Set.member (__id n) deletedNodeIds ] True
 
 dump :: TextFormat -> IO ()
 dump format = do
@@ -573,14 +628,14 @@ processCommand :: C.Command -> IO ()
 processCommand C.InitCommand = initialize
 processCommand cmd           = do
   dbExists <- DB.doesDBExist
-  unless dbExists $ do
-    fail "Not a stash directory. Try running: stash init"
-  case cmd of
-    C.BrowseCommand C.BrowseFormatTUI      -> browseTUI
-    C.BrowseCommand C.BrowseFormatMarkdown -> browseText MarkdownText
-    C.BrowseCommand C.BrowseFormatOrg      -> browseText OrgText
-    C.DumpCommand   C.DumpFormatMarkdown   -> dump MarkdownText
-    C.DumpCommand   C.DumpFormatOrg        -> dump OrgText
+  if not dbExists
+    then putStrLn "Not a stash directory. Try running: stash init"
+    else case cmd of
+      C.BrowseCommand C.BrowseFormatTUI      -> browseTUI
+      C.BrowseCommand C.BrowseFormatMarkdown -> browseText MarkdownText
+      C.BrowseCommand C.BrowseFormatOrg      -> browseText OrgText
+      C.DumpCommand   C.DumpFormatMarkdown   -> dump MarkdownText
+      C.DumpCommand   C.DumpFormatOrg        -> dump OrgText
 
 main :: IO ()
 main = do

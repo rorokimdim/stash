@@ -5,6 +5,8 @@ module TextTransform
   )
 where
 
+import Data.List (sortBy)
+
 import qualified Data.HashMap.Strict as HM
 import qualified Data.List as L
 import qualified Data.Text as T
@@ -23,6 +25,9 @@ toBody :: TextFormat -> Depth -> Body -> Body
 toBody _ _ t | T.null t = T.empty
 toBody _ _ t            = T.append t "\n"
 
+sortPlainNodesByKey :: [PlainNode] -> [PlainNode]
+sortPlainNodesByKey ns = sortBy f ns where f n1 n2 = __key n1 `compare` __key n2
+
 toText :: TextFormat -> [PlainNode] -> T.Text
 toText format plainNodes = T.concat $ map (fromPlainNode 1 T.empty) topNodes
  where
@@ -39,12 +44,12 @@ toText format plainNodes = T.concat $ map (fromPlainNode 1 T.empty) topNodes
       body   = toBody format depth $ __value n
       ntext  = T.append t $ if T.null body then title else T.append title body
       cids   = HM.lookupDefault [] (__id n) childMap
-      cnodes = [ idMap HM.! cid | cid <- cids ]
+      cnodes = sortPlainNodesByKey [ idMap HM.! cid | cid <- cids ]
     in if null cnodes
       then ntext
       else T.append ntext $ T.concat $ map (fromPlainNode (depth + 1) T.empty) cnodes
   topIds   = HM.lookupDefault [] 0 childMap
-  topNodes = [ idMap HM.! tid | tid <- topIds ]
+  topNodes = sortPlainNodesByKey [ idMap HM.! tid | tid <- topIds ]
 
 depth :: TextFormat -> T.Text -> Int
 depth MarkdownText = T.length . T.takeWhile (== '#')
@@ -54,19 +59,23 @@ untitleText :: TextFormat -> T.Text -> T.Text
 untitleText MarkdownText = T.strip . T.dropWhile (== '#')
 untitleText OrgText      = T.strip . T.dropWhile (== '*')
 
-walkText :: TextFormat -> T.Text -> ([PlainKey] -> Body -> IO ()) -> IO ()
-walkText format t f = do
+walkText :: s -> TextFormat -> T.Text -> (s -> [PlainKey] -> Body -> IO s) -> IO s
+walkText state format t f = do
   let lines = T.lines t
   let
-    process (x : xs) titles bodies = do
+    process state (x : xs) titles bodies = do
       let d       = depth format x
       let isTitle = d > 0
       if isTitle
         then do
-          if null titles then pure () else f titles (T.concat bodies)
-          let newTitles = take (d - 1) titles ++ [untitleText format x]
-          process xs newTitles []
-        else process xs titles (bodies ++ [T.strip x])
-    process [] []     _      = return ()
-    process [] titles bodies = f titles (T.concat bodies)
-  process lines [] []
+          if null titles
+            then do
+              process state xs [untitleText format x] []
+            else do
+              newState <- f state titles (T.concat bodies)
+              let newTitles = take (d - 1) titles ++ [untitleText format x]
+              process newState xs newTitles []
+        else process state xs titles (bodies ++ [T.strip x])
+    process state [] []     _      = return state
+    process state [] titles bodies = f state titles (T.concat bodies)
+  process state lines [] []

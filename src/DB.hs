@@ -7,6 +7,7 @@ module DB
   , getAllNodes
   , getAllPlainNodes
   , getIds
+  , getIdsInPath
   , getKeys
   , getNodes
   , getPath
@@ -40,62 +41,6 @@ instance FromRow EncryptedKey where
 
 instance FromRow NodeId where
   fromRow = field
-
-bootstrapSQL :: T.Text
-bootstrapSQL = [r|
-CREATE TABLE IF NOT EXISTS node (
-  id INTEGER PRIMARY KEY,
-  parent INTEGER DEFAULT 0,
-  hkey TEXT NOT NULL,
-  hvalue TEXT NOT NULL,
-  key BLOB NOT NULL,
-  value BLOB,
-  version INTEGER DEFAULT 1,
-  created TEXT DEFAULT CURRENT_TIMESTAMP,
-  modified TEXT DEFAULT CURRENT_TIMESTAMP
-);;
-CREATE UNIQUE INDEX IF NOT EXISTS idx_node_hkey_parent ON node(hkey, parent);;
-CREATE INDEX IF NOT EXISTS idx_node_parent ON node(parent);;
-
-CREATE TABLE IF NOT EXISTS node_history (
-  id INTEGER NOT NULL,
-  parent INTEGER,
-  hkey TEXT NOT NULL,
-  hvalue TEXT NOT NULL,
-  key BLOB NOT NULL,
-  value BLOB NOT NULL,
-  version INTEGER NOT NULL,
-  created TEXT NOT NULL,
-  modified TEXT NOT NULL
-);;
-CREATE INDEX IF NOT EXISTS idx_node_history_id_modified ON node(id, modified);;
-
-CREATE TRIGGER IF NOT EXISTS trigger_node_on_update
-AFTER UPDATE OF parent, hkey, hvalue ON node FOR EACH ROW
-BEGIN
-  UPDATE node
-    SET modified = CURRENT_TIMESTAMP,
-        created = OLD.created,
-        version = OLD.version + 1
-  WHERE id=NEW.id;
-
-  INSERT INTO node_history (id, parent, hkey, hvalue, key, value, version, created, modified) VALUES (
-    OLD.id,
-    OLD.parent,
-    OLD.hkey,
-    OLD.hvalue,
-    OLD.key,
-    OLD.value,
-    OLD.version,
-    OLD.created,
-    OLD.modified
-  );
-
-  DELETE FROM node_history WHERE
-    id=NEW.id AND
-    version <= NEW.version - 10;
-END
-|]
 
 getDBPath :: IO String
 getDBPath = do
@@ -138,17 +83,19 @@ addNode_ conn ekey pid key value = do
     query conn "SELECT id FROM node WHERE parent=? AND hkey=?" (pid, hkey) :: IO [Only NodeId]
   return nid
 
-save :: EncryptionKey -> [PlainKey] -> PlainValue -> IO NodeId
+save :: EncryptionKey -> [PlainKey] -> PlainValue -> IO [NodeId]
 save ekey ks value = do
   connectionString <- getConnectionString
   withConnection connectionString $ \conn -> withTransaction conn $ save_ conn ekey 0 ks value
 
-save_ :: Connection -> EncryptionKey -> ParentId -> [PlainKey] -> PlainValue -> IO NodeId
+save_ :: Connection -> EncryptionKey -> ParentId -> [PlainKey] -> PlainValue -> IO [NodeId]
 save_ conn ekey pid [k] value = do
-  saveSingle conn ekey pid k value True
+  nid <- saveSingle conn ekey pid k value True
+  return [nid]
 save_ conn ekey pid (k : ks) value = do
   nextPid <- saveSingle conn ekey pid k T.empty False
-  save_ conn ekey nextPid ks value
+  nids    <- save_ conn ekey nextPid ks value
+  return $ nextPid : nids
 
 saveSingle :: Connection -> EncryptionKey -> ParentId -> PlainKey -> PlainValue -> Bool -> IO NodeId
 saveSingle conn ekey pid key value overwrite = do
@@ -243,7 +190,8 @@ getPath_ conn ekey nid = do
         key
       FROM
         node
-      WHERE id=?
+      WHERE
+        id=?
       UNION ALL
       SELECT
         n.parent,
@@ -252,10 +200,26 @@ getPath_ conn ekey nid = do
         node n
       INNER JOIN f ON n.id=f.parent
     )
-    SELECT key FROM f;
+    SELECT key FROM f
   |]
   keys <- query conn sql (Only nid) :: IO [EncryptedKey]
   mapM (decrypt ekey) $ reverse keys
+
+getIdsInPath :: [PlainKey] -> IO [NodeId]
+getIdsInPath ks = do
+  connectionString <- getConnectionString
+  withConnection connectionString $ \conn -> getIdsInPath_ conn 0 ks
+
+getIdsInPath_ :: Connection -> ParentId -> [PlainKey] -> IO [NodeId]
+getIdsInPath_ _    _   []       = return []
+getIdsInPath_ conn pid (k : ks) = do
+  let hkey = hash k
+  result <- lookupId conn pid k
+  case result of
+    Just nid -> do
+      cids <- getIdsInPath_ conn nid ks
+      return $ nid : cids
+    Nothing -> return []
 
 getIds :: NodeId -> IO [NodeId]
 getIds startNodeId = do
@@ -271,7 +235,8 @@ getIds_ conn startNodeId = do
         id
       FROM
         node
-      WHERE id=?
+      WHERE
+        id=?
       UNION ALL
       SELECT
         n.id
@@ -345,3 +310,59 @@ getValueById conn ekey nid = do
       value <- decrypt ekey encryptedValue
       return (Just value)
     Nothing -> return Nothing
+
+bootstrapSQL :: T.Text
+bootstrapSQL = [r|
+CREATE TABLE IF NOT EXISTS node (
+  id INTEGER PRIMARY KEY,
+  parent INTEGER DEFAULT 0,
+  hkey TEXT NOT NULL,
+  hvalue TEXT NOT NULL,
+  key BLOB NOT NULL,
+  value BLOB,
+  version INTEGER DEFAULT 1,
+  created TEXT DEFAULT CURRENT_TIMESTAMP,
+  modified TEXT DEFAULT CURRENT_TIMESTAMP
+);;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_node_hkey_parent ON node(hkey, parent);;
+CREATE INDEX IF NOT EXISTS idx_node_parent ON node(parent);;
+
+CREATE TABLE IF NOT EXISTS node_history (
+  id INTEGER NOT NULL,
+  parent INTEGER,
+  hkey TEXT NOT NULL,
+  hvalue TEXT NOT NULL,
+  key BLOB NOT NULL,
+  value BLOB NOT NULL,
+  version INTEGER NOT NULL,
+  created TEXT NOT NULL,
+  modified TEXT NOT NULL
+);;
+CREATE INDEX IF NOT EXISTS idx_node_history_id_modified ON node(id, modified);;
+
+CREATE TRIGGER IF NOT EXISTS trigger_node_on_update
+AFTER UPDATE OF parent, hkey, hvalue ON node FOR EACH ROW
+BEGIN
+  UPDATE node
+    SET modified = CURRENT_TIMESTAMP,
+        created = OLD.created,
+        version = OLD.version + 1
+  WHERE id=NEW.id;
+
+  INSERT INTO node_history (id, parent, hkey, hvalue, key, value, version, created, modified) VALUES (
+    OLD.id,
+    OLD.parent,
+    OLD.hkey,
+    OLD.hvalue,
+    OLD.key,
+    OLD.value,
+    OLD.version,
+    OLD.created,
+    OLD.modified
+  );
+
+  DELETE FROM node_history WHERE
+    id=NEW.id AND
+    version <= NEW.version - 10;
+END
+|]
