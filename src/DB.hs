@@ -1,11 +1,13 @@
 module DB
   ( addNode
   , bootstrap
+  , checkEncryptionKey
   , decryptNode
   , deleteNodes
   , doesDBExist
   , getAllNodes
   , getAllPlainNodes
+  , getConfig
   , getIds
   , getIdsInPath
   , getKeys
@@ -15,6 +17,7 @@ module DB
   , getPlainNodes
   , retrieve
   , save
+  , setConfig
   , updateNode
   )
 where
@@ -55,12 +58,19 @@ doesDBExist = do
   dbPath <- getDBPath
   doesFileExist dbPath
 
-bootstrap :: IO ()
-bootstrap = do
+checkEncryptionKey :: EncryptionKey -> IO Bool
+checkEncryptionKey ekey = do
+  storedHash <- getConfig "encryptionKeyHash"
+  return $ hash (T.pack ekey) == T.unpack storedHash
+
+bootstrap :: EncryptionKey -> IO ()
+bootstrap ekey = do
   let splits  = T.splitOn ";;" bootstrapSQL
   let queries = [ Query x | x <- splits ]
   connectionString <- getConnectionString
-  withConnection connectionString $ \conn -> withTransaction conn $ mapM_ (execute_ conn) queries
+  withConnection connectionString $ \conn -> withTransaction conn $ do
+    mapM_ (execute_ conn) queries
+    setConfig_ conn "encryptionKeyHash" $ T.pack (hash $ T.pack ekey)
 
 clean :: PlainKey -> PlainValue -> (PlainKey, PlainValue)
 clean k v = (T.strip k, T.strip v)
@@ -311,8 +321,38 @@ getValueById conn ekey nid = do
       return (Just value)
     Nothing -> return Nothing
 
+getConfig :: T.Text -> IO T.Text
+getConfig name = do
+  connectionString <- getConnectionString
+  withConnection connectionString $ \conn -> getConfig_ conn name
+
+getConfig_ :: Connection -> T.Text -> IO T.Text
+getConfig_ conn name = do
+  result <- query conn "SELECT value FROM config WHERE name=?" (Only name) :: IO [Only T.Text]
+  case result of
+    [Only value] -> return value
+    []           -> return ""
+
+setConfig :: T.Text -> T.Text -> IO ()
+setConfig name value = do
+  connectionString <- getConnectionString
+  withConnection connectionString $ \conn -> setConfig_ conn name value
+
+setConfig_ :: Connection -> T.Text -> T.Text -> IO ()
+setConfig_ conn name value = do
+  let
+    insertSQL
+      = "INSERT INTO config (name, value) VALUES (?, ?) ON CONFLICT(name) DO UPDATE SET value=excluded.value"
+  execute conn (Query $ T.pack insertSQL) (name, value)
+
 bootstrapSQL :: T.Text
 bootstrapSQL = [r|
+CREATE TABLE IF NOT EXISTS config (
+  name TEXT NOT NULL,
+  value TEXT NOT NULL
+);;
+CREATE UNIQUE INDEX IF NOT EXISTS ids_config_name ON config(name);;
+
 CREATE TABLE IF NOT EXISTS node (
   id INTEGER PRIMARY KEY,
   parent INTEGER DEFAULT 0,

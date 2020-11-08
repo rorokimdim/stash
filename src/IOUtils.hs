@@ -40,6 +40,15 @@ readString prompt mask = runInputT defaultSettings $ do
   line <- reader prompt
   return $ fromMaybe "" line
 
+readNonEmptyString :: String -> Bool -> IO String
+readNonEmptyString prompt mask = do
+  line <- readString prompt mask
+  if null line
+    then do
+      putStrLn "🙀 Input cannot be empty."
+      readNonEmptyString prompt mask
+    else return line
+
 readValidatedString :: String -> Bool -> (String -> IO Bool) -> IO String
 readValidatedString prompt mask validator = do
   line  <- readString prompt mask
@@ -77,11 +86,11 @@ getEnvWithPromptFallback name promptMessage mask confirm = do
   case (value :: Either IOError String) of
     Left e -> do
       putStrLn $ "☠️  " ++ name ++ " not set."
-      key0 <- readString promptMessage mask
+      key0 <- readNonEmptyString promptMessage mask
       if confirm
         then do
-          putStrLn $ "Please confirm again. " ++ promptMessage
-          key1 <- readString promptMessage mask
+          putStrLn "Please confirm by entering again."
+          key1 <- readNonEmptyString promptMessage mask
           if key0 == key1
             then do
               updateEnv name key0

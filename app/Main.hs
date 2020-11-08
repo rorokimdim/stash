@@ -26,6 +26,7 @@ import qualified Graphics.Vty.Attributes as VA
 import qualified Options.Applicative as O
 import qualified Pretty.Diff as Diff
 import qualified Text.Fuzzy as TF
+import qualified Text.Tabl as Table
 
 import qualified CommandParsers as C
 import qualified DB
@@ -40,8 +41,8 @@ type SelectedIndex = Int
 type ResourceName = String
 data DirectionKey = UP | DOWN | LEFT | RIGHT deriving (Show)
 
-data GenericEditOptions = GERenameKey | GEAddKey | GEAddChildKey | GEDeleteKey deriving (Show)
-data UIMode = BROWSE | BROWSE_EMPTY | GENERIC_EDIT GenericEditOptions | SORT deriving (Show)
+data GenericEditOptions = GERenameKey | GEAddKey | GEAddChildKey | GEDeleteKey deriving (Eq, Show)
+data UIMode = BROWSE | BROWSE_EMPTY | BROWSE_HELP | GENERIC_EDIT GenericEditOptions | SORT deriving (Eq, Show)
 data ValidationResult = VRSuccess | VRIgnore | VRFailed T.Text
 
 data AppState = AppState {
@@ -70,6 +71,16 @@ app = BM.App
 
 getEncryptionKey :: IO EncryptionKey
 getEncryptionKey = do
+  ekey <- IOUtils.getEnvWithPromptFallback
+    "STASH_ENCRYPTION_KEY"
+    "Enter encryption key: "
+    True
+    False
+  valid <- DB.checkEncryptionKey ekey
+  if valid then return ekey else fail "Encryption key is invalid for current stash database."
+
+getEncryptionKeyWithConfirmation :: IO EncryptionKey
+getEncryptionKeyWithConfirmation = do
   IOUtils.getEnvWithPromptFallback "STASH_ENCRYPTION_KEY" "Enter encryption key: " True True
 
 pathWidget :: AppState -> BT.Widget ResourceName
@@ -99,12 +110,37 @@ inputWidget s@AppState { _genericEditor = editor, _genericEditPrompt = prompt, _
   where f xs = BWC.withAttr "genericEditText" $ BWC.txt $ T.concat xs
 inputWidget _ = BWC.txt ""
 
+helpKeys :: T.Text
+helpKeys = Table.tabl Table.EnvAscii hdecor vdecor aligns cells
+ where
+  hdecor = Table.DecorUnion [Table.DecorOnly [1]]
+  vdecor = Table.DecorNone
+  aligns = [Table.AlignLeft, Table.AlignLeft]
+  cells =
+    [ ["Shortcuts", "Description"]
+    , ["ESC (q)", "Quit"]
+    , ["?", "Show this help"]
+    , ["+", "Add a new key"]
+    , [">", "Add a child key to selected key"]
+    , ["-", "Delete selected key"]
+    , [", (r)", "Rename selected key"]
+    , ["/", "Search and sort by pattern"]
+    , ["Enter", "Set value of selected key"]
+    , ["Left arrow (h)", "Move to parent of selected key"]
+    , ["Right arrow (l)", "Move to child of selected key"]
+    , ["Up arrow (k, Ctrl-p)", "Select above"]
+    , ["Down arrow (j, Ctrl-n)", "Select below"]
+    ]
+
+helpWidget :: BT.Widget ResourceName
+helpWidget = BWC.txt helpKeys
+
 mainFrame :: AppState -> BT.Widget ResourceName
 mainFrame s = BWC.withBorderStyle BWBS.unicode $ BWB.borderWithLabel (BWC.txt "Stash") $ BWC.vBox
   [ BWC.vLimitPercent 60 $ BWC.hBox
-    [ BWC.hLimitPercent 50 $ BWC.padRight (BT.Pad 1) $ BWC.vBox [kw]
+    [ BWC.hLimitPercent 30 $ BWC.padRight (BT.Pad 1) leftWidget
     , BWB.vBorder
-    , BWC.hLimitPercent 50 $ BWC.padLeft (BT.Pad 1) $ BWC.vBox [pathWidget s, BWC.vBox ckws]
+    , BWC.hLimitPercent 70 $ BWC.padLeft (BT.Pad 1) rightWidget
     ]
   , BWB.hBorder
   , BWC.txtWrap selectedNodeValue
@@ -112,12 +148,22 @@ mainFrame s = BWC.withBorderStyle BWBS.unicode $ BWB.borderWithLabel (BWC.txt "S
   , inputWidget s
   ]
  where
-  plainNodes        = _plainNodes s
-  kw                = if null plainNodes then BWC.txt "Stash is Empty!" else listWidget s
+  plainNodes = _plainNodes s
+  isEmpty    = null plainNodes
+  kw         = if isEmpty
+    then BWC.vBox
+      [ BWC.txt "Stash is Empty!"
+      , BWC.padTop (BT.Pad 1) $ BWC.txtWrap "Get started by following instructions on the right."
+      ]
+    else listWidget s
   ckws              = map BWC.txt $ _selectedChildKeys s
   selectPath        = _selectPath s
   si                = if null selectPath then -1 else snd $ last selectPath
-  selectedNodeValue = if null plainNodes then "" else __value $ plainNodes !! si
+  selectedNodeValue = if isEmpty then "" else __value $ plainNodes !! si
+  leftWidget        = BWC.vBox [kw]
+  rightWidget       = if isEmpty || _uiMode s == BROWSE_HELP
+    then if isEmpty then helpWidget else BWC.vBox [BWC.txt "< Press ESC to hide >", helpWidget]
+    else BWC.vBox [pathWidget s, BWC.vBox ckws]
 
 draw :: AppState -> [BT.Widget ResourceName]
 draw s = [mainFrame s]
@@ -152,7 +198,7 @@ handleSharedEvent
 handleSharedEvent s event@(BT.VtyEvent e) = case e of
   V.EvKey V.KEsc        [] -> BM.halt s
   V.EvKey (V.KChar 'q') [] -> BM.halt s
-  V.EvKey (V.KChar '+') [] -> BM.continue $ prepareForAddKey s
+  V.EvKey (V.KChar '?') [] -> BM.continue $ s { _uiMode = BROWSE_HELP }
   _                        -> BM.continue s
 
 getSelected :: AppState -> (PlainNode, ParentId, SelectedIndex)
@@ -321,8 +367,14 @@ prepareForDeleteKey s = s
   editor = BWE.editor "genericEditor" (Just 1) ""
 
 handleEvent :: AppState -> BT.BrickEvent ResourceName e -> BT.EventM ResourceName (BT.Next AppState)
-handleEvent s@AppState { _uiMode = BROWSE_EMPTY } event@(BT.VtyEvent e) = handleSharedEvent s event
-handleEvent s@AppState { _uiMode = BROWSE }       event@(BT.VtyEvent e) = case e of
+handleEvent s@AppState { _uiMode = BROWSE_EMPTY } event@(BT.VtyEvent e) = case e of
+  V.EvKey (V.KChar '+') [] -> BM.continue $ prepareForAddKey s
+  V.EvKey (V.KChar '?') [] -> BM.continue s
+  _                        -> handleSharedEvent s event
+handleEvent s@AppState { _uiMode = BROWSE_HELP } event@(BT.VtyEvent e) = case e of
+  V.EvKey V.KEsc [] -> BM.continue $ switchToBrowseMode s
+  _                 -> handleSharedEvent s event
+handleEvent s@AppState { _uiMode = BROWSE } event@(BT.VtyEvent e) = case e of
   V.EvKey V.KEsc        []        -> BM.halt s
   V.EvKey V.KEnter      []        -> BM.suspendAndResume $ editSelectedValue s
   V.EvKey V.KLeft       []        -> move s LEFT
@@ -620,8 +672,9 @@ dump format = do
 
 initialize :: IO ()
 initialize = do
-  dir <- IOUtils.createStashDirectoryIfNotExists
-  DB.bootstrap
+  dir  <- IOUtils.createStashDirectoryIfNotExists
+  ekey <- getEncryptionKeyWithConfirmation
+  DB.bootstrap ekey
   putStrLn $ "Initialized stash in " ++ dir
 
 processCommand :: C.Command -> IO ()
