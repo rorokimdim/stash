@@ -684,17 +684,21 @@ dump format = do
 
 initialize :: IO ()
 initialize = do
-  dir  <- IOUtils.createStashDirectoryIfNotExists
-  ekey <- getEncryptionKeyWithConfirmation
-  DB.bootstrap ekey
-  TIO.putStrLn $ T.intercalate
-    "\n"
-    [ T.append "Initialized stash in " $ T.pack dir
-    , "\nOnly a salted hash (good random salt + SHA512) of the encryption-key was saved."
-    , "You will be prompted for your encryption-key when needed."
-    , "(unless STASH_ENCRYPTION_KEY environment variable is set)\n"
-    , T.append "▸ Note: To undo initialization, just remove " $ T.pack dir
-    ]
+  dbExists <- DB.doesDBExist
+  dir      <- IOUtils.createStashDirectoryIfNotExists
+  if dbExists
+    then TIO.putStrLn $ T.append "Reinitialized existing stash in " $ T.pack dir
+    else do
+      ekey <- getEncryptionKeyWithConfirmation
+      DB.bootstrap ekey
+      TIO.putStrLn $ T.intercalate
+        "\n"
+        [ T.append "Initialized stash in " $ T.pack dir
+        , "\nOnly a salted hash (good random salt + SHA512) of the encryption-key was saved."
+        , "You will be prompted for your encryption-key when needed."
+        , "(unless STASH_ENCRYPTION_KEY environment variable is set)\n"
+        , T.append "▸ Note: To undo initialization, just remove " $ T.pack dir
+        ]
 
 processCommand :: C.Command -> IO ()
 processCommand C.InitCommand = initialize
