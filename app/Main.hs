@@ -81,7 +81,7 @@ getEncryptionKey = do
   if valid then return ekey else fail "Encryption key is invalid for current stash database."
 
 getEncryptionKeyWithConfirmation :: IO EncryptionKey
-getEncryptionKeyWithConfirmation = do
+getEncryptionKeyWithConfirmation =
   IOUtils.getEnvWithPromptFallback "STASH_ENCRYPTION_KEY" "Enter encryption key: " True True
 
 pathWidget :: AppState -> BT.Widget ResourceName

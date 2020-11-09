@@ -26,7 +26,7 @@ data UserResponseYesNo = URYes | URNo | URYesToAll | URNoToAll deriving (Eq, Sho
 getStashDirectory :: IO String
 getStashDirectory = do
   dir <- getEnvWithDefault "STASH_DIRECTORY" ".stash"
-  Directory.makeAbsolute dir
+  Directory.makeAbsolute $ T.unpack dir
 
 createStashDirectoryIfNotExists :: IO String
 createStashDirectoryIfNotExists = do
@@ -34,22 +34,22 @@ createStashDirectoryIfNotExists = do
   Directory.createDirectoryIfMissing True dir
   return dir
 
-readString :: String -> Bool -> IO String
+readString :: String -> Bool -> IO T.Text
 readString prompt mask = runInputT defaultSettings $ do
   let reader = if mask then getPassword (Just '*') else getInputLine
   line <- reader prompt
-  return $ fromMaybe "" line
+  return $ T.pack $ fromMaybe "" line
 
-readNonEmptyString :: String -> Bool -> IO String
+readNonEmptyString :: String -> Bool -> IO T.Text
 readNonEmptyString prompt mask = do
   line <- readString prompt mask
-  if null line
+  if T.null line
     then do
       putStrLn "🙀 Input cannot be empty."
       readNonEmptyString prompt mask
     else return line
 
-readValidatedString :: String -> Bool -> (String -> IO Bool) -> IO String
+readValidatedString :: String -> Bool -> (T.Text -> IO Bool) -> IO T.Text
 readValidatedString prompt mask validator = do
   line  <- readString prompt mask
   valid <- validator line
@@ -73,14 +73,14 @@ readUserResponseYesNo prompt = do
     "yes-to-all" -> URYesToAll
     "no-to-all"  -> URNoToAll
 
-getEnvWithDefault :: String -> String -> IO String
+getEnvWithDefault :: String -> T.Text -> IO T.Text
 getEnvWithDefault name defaultValue = do
   value <- try $ getEnv name
   case (value :: Either IOError String) of
     Left  e   -> return defaultValue
-    Right key -> return key
+    Right key -> return $ T.pack key
 
-getEnvWithPromptFallback :: String -> String -> Bool -> Bool -> IO String
+getEnvWithPromptFallback :: String -> String -> Bool -> Bool -> IO T.Text
 getEnvWithPromptFallback name promptMessage mask confirm = do
   value <- try $ getEnv name
   case (value :: Either IOError String) of
@@ -99,16 +99,16 @@ getEnvWithPromptFallback name promptMessage mask confirm = do
               getEnvWithPromptFallback name promptMessage mask confirm
         else do
           updateEnv name key0
-    Right key -> return key
+    Right key -> return $ T.pack key
  where
   updateEnv name key = do
-    setEnv name key
+    setEnv name $ T.unpack key
     return key
 
 edit :: String -> T.Text -> IO T.Text
 edit fileExtension initialContent = do
   let template = TEditor.mkTemplate fileExtension
-  editorVar <- T.pack <$> getEnvWithPromptFallback "EDITOR" "Enter editor path: " False False
+  editorVar <- getEnvWithPromptFallback "EDITOR" "Enter editor path: " False False
   let editorCmdParts = T.words editorVar
   let editor = T.unpack $ if null editorCmdParts then "vim" else head editorCmdParts
   bytes <- TEditor.runSpecificEditor editor template $ TE.encodeUtf8 initialContent

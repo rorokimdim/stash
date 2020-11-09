@@ -29,9 +29,9 @@ import System.Directory (doesFileExist)
 import Text.RawString.QQ
 
 import qualified IOUtils
+import qualified Cipher
 
 import Types
-import Cipher (encrypt, decrypt, hash)
 
 import qualified Data.Text as T
 
@@ -60,8 +60,9 @@ doesDBExist = do
 
 checkEncryptionKey :: EncryptionKey -> IO Bool
 checkEncryptionKey ekey = do
+  storedSalt <- getConfig "hashSalt"
   storedHash <- getConfig "encryptionKeyHash"
-  return $ hash (T.pack ekey) == T.unpack storedHash
+  return $ Cipher.hash storedSalt ekey == storedHash
 
 bootstrap :: EncryptionKey -> IO ()
 bootstrap ekey = do
@@ -70,7 +71,9 @@ bootstrap ekey = do
   connectionString <- getConnectionString
   withConnection connectionString $ \conn -> withTransaction conn $ do
     mapM_ (execute_ conn) queries
-    setConfig_ conn "encryptionKeyHash" $ T.pack (hash $ T.pack ekey)
+    salt <- Cipher.generateHashSalt
+    setConfig_ conn "hashSalt" salt
+    setConfig_ conn "encryptionKeyHash" $ Cipher.hash salt ekey
 
 clean :: PlainKey -> PlainValue -> (PlainKey, PlainValue)
 clean k v = (T.strip k, T.strip v)
@@ -83,10 +86,11 @@ addNode ekey pid key value = do
 
 addNode_ :: Connection -> EncryptionKey -> ParentId -> PlainKey -> PlainValue -> IO NodeId
 addNode_ conn ekey pid key value = do
-  encryptedKey   <- encrypt ekey key
-  encryptedValue <- encrypt ekey value
-  let hkey      = hash key
-  let hvalue    = hash value
+  encryptedKey   <- Cipher.encrypt ekey key
+  encryptedValue <- Cipher.encrypt ekey value
+  salt           <- getHashSalt_ conn
+  let hkey      = Cipher.hash salt key
+  let hvalue    = Cipher.hash salt value
   let insertSQL = "INSERT INTO node (parent, hkey, hvalue, key, value) VALUES (?, ?, ?, ?, ?)"
   execute conn (Query insertSQL) (pid, hkey, hvalue, encryptedKey, encryptedValue)
   [Only nid] <-
@@ -110,10 +114,11 @@ save_ conn ekey pid (k : ks) value = do
 saveSingle :: Connection -> EncryptionKey -> ParentId -> PlainKey -> PlainValue -> Bool -> IO NodeId
 saveSingle conn ekey pid key value overwrite = do
   let (cleanedKey, cleanedValue) = clean key value
-  encryptedKey   <- encrypt ekey cleanedKey
-  encryptedValue <- encrypt ekey cleanedValue
-  let hkey   = hash cleanedKey
-  let hvalue = hash cleanedValue
+  encryptedKey   <- Cipher.encrypt ekey cleanedKey
+  encryptedValue <- Cipher.encrypt ekey cleanedValue
+  salt           <- getHashSalt_ conn
+  let hkey   = Cipher.hash salt cleanedKey
+  let hvalue = Cipher.hash salt cleanedValue
   let
     onConflictClause = if overwrite
       then "UPDATE SET hvalue=excluded.hvalue, value=excluded.value WHERE hvalue != excluded.hvalue"
@@ -136,10 +141,11 @@ updateNode ekey nid key value = do
 
 updateNode_ :: Connection -> EncryptionKey -> NodeId -> PlainKey -> PlainValue -> IO ()
 updateNode_ conn ekey nid key value = do
-  let hkey   = hash key
-  let hvalue = hash value
-  encryptedKey   <- encrypt ekey key
-  encryptedValue <- encrypt ekey value
+  salt <- getHashSalt_ conn
+  let hkey   = Cipher.hash salt key
+  let hvalue = Cipher.hash salt value
+  encryptedKey   <- Cipher.encrypt ekey key
+  encryptedValue <- Cipher.encrypt ekey value
   let sql = "UPDATE node SET hkey=?, hvalue=?, key=?, value=? WHERE id=?"
   execute conn (Query sql) (hkey, hvalue, encryptedKey, encryptedValue, nid)
 
@@ -151,7 +157,7 @@ getPlainNodes ekey pid = do
 getPlainKeys :: EncryptionKey -> ParentId -> IO [PlainKey]
 getPlainKeys ekey pid = do
   keys <- getKeys pid
-  mapM (decrypt ekey) keys
+  mapM (Cipher.decrypt ekey) keys
 
 getNodes :: ParentId -> IO [Node]
 getNodes pid = do
@@ -213,7 +219,7 @@ getPath_ conn ekey nid = do
     SELECT key FROM f
   |]
   keys <- query conn sql (Only nid) :: IO [EncryptedKey]
-  mapM (decrypt ekey) $ reverse keys
+  mapM (Cipher.decrypt ekey) $ reverse keys
 
 getIdsInPath :: [PlainKey] -> IO [NodeId]
 getIdsInPath ks = do
@@ -223,7 +229,8 @@ getIdsInPath ks = do
 getIdsInPath_ :: Connection -> ParentId -> [PlainKey] -> IO [NodeId]
 getIdsInPath_ _    _   []       = return []
 getIdsInPath_ conn pid (k : ks) = do
-  let hkey = hash k
+  salt <- getHashSalt_ conn
+  let hkey = Cipher.hash salt k
   result <- lookupId conn pid k
   case result of
     Just nid -> do
@@ -271,8 +278,8 @@ deleteNodes_ conn nids = do
 
 decryptNode :: EncryptionKey -> Node -> IO PlainNode
 decryptNode ekey n = do
-  plainKey   <- decrypt ekey (_key n)
-  plainValue <- decrypt ekey (_value n)
+  plainKey   <- Cipher.decrypt ekey (_key n)
+  plainValue <- Cipher.decrypt ekey (_value n)
   return PlainNode
     { __id       = _id n
     , __parent   = _parent n
@@ -304,7 +311,8 @@ retrieve_ conn ekey pid (k : ks) = do
 
 lookupId :: Connection -> ParentId -> PlainKey -> IO (Maybe NodeId)
 lookupId conn pid k = do
-  let hkey = hash k
+  salt <- getHashSalt_ conn
+  let hkey = Cipher.hash salt k
   result <-
     query conn "SELECT id FROM node WHERE parent=? AND hkey=?" (pid, hkey) :: IO [Only NodeId]
   case result of
@@ -317,7 +325,7 @@ getValueById conn ekey nid = do
     query conn "SELECT value FROM node WHERE id=?" (Only nid) :: IO [Only (Maybe EncryptedValue)]
   case result of
     Just encryptedValue -> do
-      value <- decrypt ekey encryptedValue
+      value <- Cipher.decrypt ekey encryptedValue
       return (Just value)
     Nothing -> return Nothing
 
@@ -344,6 +352,14 @@ setConfig_ conn name value = do
     insertSQL
       = "INSERT INTO config (name, value) VALUES (?, ?) ON CONFLICT(name) DO UPDATE SET value=excluded.value"
   execute conn (Query $ T.pack insertSQL) (name, value)
+
+getHashSalt :: IO HashSalt
+getHashSalt = do
+  connectionString <- getConnectionString
+  withConnection connectionString getHashSalt_
+
+getHashSalt_ :: Connection -> IO HashSalt
+getHashSalt_ conn = getConfig_ conn "hashSalt"
 
 bootstrapSQL :: T.Text
 bootstrapSQL = [r|

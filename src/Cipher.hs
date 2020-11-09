@@ -1,36 +1,49 @@
 module Cipher
   ( encrypt
   , decrypt
+  , generateHashSalt
   , hash
   )
 where
 
 import Control.Exception
+import Crypto.Data.Padding (Format(PKCS7))
 
+import qualified Crypto.Data.Padding as Padding
 import qualified Crypto.Simple.CTR as C
+import qualified Data.ByteString.Base64 as Base64
+import qualified Data.ByteString.Char8 as Char8
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.Digest.Pure.SHA as SHA
 import qualified Data.Text as T
-
-import Data.ByteString (ByteString)
-import Data.ByteString.Char8 (pack)
-import Data.Text.Encoding (encodeUtf8, decodeUtf8')
-import Data.Text.Encoding.Error (UnicodeException)
-import Crypto.Data.Padding (pad, Format(PKCS7))
+import qualified Data.Text.Encoding as Encoding
+import qualified Data.Text.Encoding.Error as E
+import qualified System.Entropy as Entropy
 
 import Types
 
 encrypt :: EncryptionKey -> PlainValue -> IO EncryptedValue
-encrypt key message = C.encrypt pkey (encodeUtf8 message) where pkey = pad (PKCS7 32) (pack key)
+encrypt key message = C.encrypt pkey (Encoding.encodeUtf8 message)
+  where pkey = Padding.pad (PKCS7 32) (Char8.pack $ T.unpack key)
 
 decrypt :: EncryptionKey -> EncryptedValue -> IO PlainValue
 decrypt key message = do
   decryptedMessage <- C.decrypt pkey message
-  let result = decodeUtf8' decryptedMessage
-  case (result :: Either UnicodeException PlainValue) of
+  let result = Encoding.decodeUtf8' decryptedMessage
+  case (result :: Either E.UnicodeException PlainValue) of
     Left e -> fail "Encryption key is invalid for current database. Please use the correct key."
     Right value -> return value
-  where pkey = pad (PKCS7 32) (pack key)
+  where pkey = Padding.pad (PKCS7 32) (Char8.pack $ T.unpack key)
 
-hash :: T.Text -> String
-hash bs = SHA.showDigest $ SHA.sha512 $ LBS.fromStrict $ encodeUtf8 bs
+hash :: HashSalt -> T.Text -> T.Text
+hash salt value =
+  T.pack $ SHA.showDigest $ SHA.sha512 $ LBS.fromStrict $ Encoding.encodeUtf8 $ T.append salt value
+
+generateHashSalt :: IO HashSalt
+generateHashSalt = generateHashSalt_ 64
+
+generateHashSalt_ :: Int -> IO HashSalt
+generateHashSalt_ n = do
+  let getE n = maybe (Entropy.getEntropy n) pure =<< Entropy.getHardwareEntropy n
+  rbs <- getE n
+  return $ Encoding.decodeUtf8 $ Base64.encode rbs

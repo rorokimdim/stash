@@ -23,6 +23,7 @@ dependencies:
 - base >= 4.7 && < 5
 - Glob
 - SHA
+- base64-bytestring
 - brick
 - bytestring
 - crypto-simple
@@ -30,6 +31,7 @@ dependencies:
 - data-default
 - directory
 - editor-open
+- entropy
 - filepath
 - fuzzy
 - haskeline
