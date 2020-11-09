@@ -7,9 +7,8 @@ module Cipher
 where
 
 import Control.Exception
-import Crypto.Data.Padding (Format(PKCS7))
 
-import qualified Crypto.Data.Padding as Padding
+import qualified Crypto.Data.Padding as Padding (pad, Format(..))
 import qualified Crypto.Simple.CTR as C
 import qualified Data.ByteString.Base64 as Base64
 import qualified Data.ByteString.Char8 as Char8
@@ -24,7 +23,7 @@ import Types
 
 encrypt :: EncryptionKey -> PlainValue -> IO EncryptedValue
 encrypt key message = C.encrypt pkey (Encoding.encodeUtf8 message)
-  where pkey = Padding.pad (PKCS7 32) (Char8.pack $ T.unpack key)
+  where pkey = Padding.pad (Padding.PKCS7 32) (Char8.pack $ T.unpack key)
 
 decrypt :: EncryptionKey -> EncryptedValue -> IO PlainValue
 decrypt key message = do
@@ -33,7 +32,7 @@ decrypt key message = do
   case (result :: Either E.UnicodeException PlainValue) of
     Left e -> fail "Encryption key is invalid for current database. Please use the correct key."
     Right value -> return value
-  where pkey = Padding.pad (PKCS7 32) (Char8.pack $ T.unpack key)
+  where pkey = Padding.pad (Padding.PKCS7 32) (Char8.pack $ T.unpack key)
 
 hash :: HashSalt -> T.Text -> T.Text
 hash salt value =

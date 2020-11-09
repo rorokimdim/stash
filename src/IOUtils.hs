@@ -14,10 +14,9 @@ import Control.Exception
 import Data.Maybe
 import System.Environment (getEnv, setEnv)
 
-import System.Console.Haskeline
-
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
+import qualified System.Console.Haskeline as HL
 import qualified System.Directory as Directory
 import qualified Text.Editor as TEditor
 
@@ -35,8 +34,8 @@ createStashDirectoryIfNotExists = do
   return dir
 
 readString :: String -> Bool -> IO T.Text
-readString prompt mask = runInputT defaultSettings $ do
-  let reader = if mask then getPassword (Just '*') else getInputLine
+readString prompt mask = HL.runInputT HL.defaultSettings $ do
+  let reader = if mask then HL.getPassword (Just '*') else HL.getInputLine
   line <- reader prompt
   return $ T.pack $ fromMaybe "" line
 
