@@ -18,18 +18,14 @@ type Title = T.Text
 type Body = T.Text
 
 toTitle :: TextFormat -> Depth -> Title -> Title
-toTitle MarkdownText depth t = T.concat [T.pack $ replicate depth '#', " ", t, "\n"]
-toTitle OrgText      depth t = T.concat [T.pack $ replicate depth '*', " ", t, "\n"]
-
-toBody :: TextFormat -> Depth -> Body -> Body
-toBody _ _ t | T.null t = T.empty
-toBody _ _ t            = T.append t "\n"
+toTitle MarkdownText depth t = T.concat [T.pack $ replicate depth '#', " ", t]
+toTitle OrgText      depth t = T.concat [T.pack $ replicate depth '*', " ", t]
 
 sortPlainNodesByKey :: [PlainNode] -> [PlainNode]
 sortPlainNodesByKey ns = sortBy f ns where f n1 n2 = __key n1 `compare` __key n2
 
 toText :: TextFormat -> [PlainNode] -> T.Text
-toText format plainNodes = T.concat $ map (fromPlainNode 1 T.empty) topNodes
+toText format plainNodes = T.intercalate "\n" $ map (fromPlainNode 1 T.empty) topNodes
  where
   idMap    = HM.fromList [ (__id n, n) | n <- plainNodes ]
   childMap = buildChildMap HM.empty plainNodes
@@ -41,13 +37,15 @@ toText format plainNodes = T.concat $ map (fromPlainNode 1 T.empty) topNodes
   fromPlainNode depth t n =
     let
       title  = toTitle format depth $ __key n
-      body   = toBody format depth $ __value n
-      ntext  = T.append t $ if T.null body then title else T.append title body
+      body   = __value n
+      ntext  = T.strip $ T.intercalate "\n" [t, title, body]
       cids   = HM.lookupDefault [] (__id n) childMap
       cnodes = sortPlainNodesByKey [ idMap HM.! cid | cid <- cids ]
     in if null cnodes
       then ntext
-      else T.append ntext $ T.concat $ map (fromPlainNode (depth + 1) T.empty) cnodes
+      else T.strip $ T.intercalate
+        "\n"
+        [ntext, T.intercalate "\n" $ map (fromPlainNode (depth + 1) T.empty) cnodes]
   topIds   = HM.lookupDefault [] 0 childMap
   topNodes = sortPlainNodesByKey [ idMap HM.! tid | tid <- topIds ]
 
@@ -72,10 +70,10 @@ walkText state format t f = do
             then do
               process state xs [untitleText format x] []
             else do
-              newState <- f state titles (T.concat bodies)
+              newState <- f state titles $ T.intercalate "\n" bodies
               let newTitles = take (d - 1) titles ++ [untitleText format x]
               process newState xs newTitles []
         else process state xs titles (bodies ++ [T.strip x])
     process state [] []     _      = return state
-    process state [] titles bodies = f state titles (T.concat bodies)
+    process state [] titles bodies = f state titles $ T.intercalate "\n" bodies
   process state lines [] []
