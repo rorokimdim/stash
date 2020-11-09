@@ -33,6 +33,7 @@ dependencies:
 - filepath
 - fuzzy
 - haskeline
+- Hclip
 - mtl
 - optparse-applicative
 - pretty-diff

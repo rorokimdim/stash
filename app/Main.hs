@@ -25,6 +25,7 @@ import qualified Graphics.Vty as V
 import qualified Graphics.Vty.Attributes as VA
 import qualified Options.Applicative as O
 import qualified Pretty.Diff as Diff
+import qualified System.Hclip as Hclip
 import qualified Text.Fuzzy as TF
 import qualified Text.Tabl as Table
 
@@ -125,6 +126,7 @@ helpKeys = Table.tabl Table.EnvAscii hdecor vdecor aligns cells
     , ["-", "Delete selected key"]
     , [", (r)", "Rename selected key"]
     , ["/", "Search and sort by pattern"]
+    , ["y", "Copy value of selected key into system clipboard"]
     , ["Enter", "Set value of selected key"]
     , ["Left arrow (h)", "Move to parent of selected key"]
     , ["Right arrow (l)", "Move to child of selected key"]
@@ -207,6 +209,12 @@ getSelected s = (plainNodes !! si, pid, si)
   plainNodes = _plainNodes s
   selectPath = _selectPath s
   (pid, si)  = last selectPath
+
+copySelectedValue :: AppState -> IO ()
+copySelectedValue s = do
+  let (selectedNode, _, _) = getSelected s
+  let value                = __value selectedNode
+  Hclip.setClipboard $ T.unpack value
 
 editSelectedValue :: AppState -> IO AppState
 editSelectedValue s = do
@@ -399,6 +407,7 @@ handleEvent s@AppState { _uiMode = BROWSE } event@(BT.VtyEvent e) = case e of
   V.EvKey (V.KChar '+') []        -> BM.continue $ prepareForAddKey s
   V.EvKey (V.KChar '>') []        -> BM.continue $ prepareForAddChildKey s
   V.EvKey (V.KChar '-') []        -> BM.continue $ prepareForDeleteKey s
+  V.EvKey (V.KChar 'y') []        -> liftIO (copySelectedValue s) >> BM.continue s
   _                               -> handleSharedEvent s event
  where
   move s direction = do

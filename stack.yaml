@@ -42,6 +42,7 @@ packages:
 extra-deps:
 - crypto-simple-0.1.0.0
 - direct-sqlite-2.3.26
+- Hclip-3.0.0.4
 - pretty-diff-0.2.0.2
 - sqlite-simple-0.4.18.0
 - tabl-1.0.3
