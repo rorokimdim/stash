@@ -35,6 +35,7 @@ dependencies:
 - filepath
 - fuzzy
 - haskeline
+- io-memoize
 - Hclip
 - mtl
 - optparse-applicative
