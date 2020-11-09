@@ -12,9 +12,15 @@ Run the following commnad in a directory where we want to store your stash.
 stash init
 ```
 
+This will create a `.stash` directory and initialize its `sqlite` database. We will also be
+prompted for the encryption-key (password) we wish to use for the stash. The key is not saved anywhere, but a
+salted hash (good random salt + SHA512) of the key and the salt used is saved in your `.stash` directory. The hash is
+checked with entered encryption-key when we run stash commands -- this ensures we don't accidentally use
+different encryption-key to store data. The salt is also used to hash our data -- to speed
+up searches and to check for changes.
+
 If we wish to keep a global stash, we can set `STASH_DIRECTORY` environemnt variable. Running
 the above command with `STASH_DIRECTORY` set will initialize stash in the set directory.
-
 ## Browsing
 
 ### Terminal user interface (default)

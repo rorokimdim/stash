@@ -132,6 +132,9 @@ helpKeys = Table.tabl Table.EnvAscii hdecor vdecor aligns cells
     , ["Right arrow (l)", "Move to child of selected key"]
     , ["Up arrow (k, Ctrl-p)", "Select above"]
     , ["Down arrow (j, Ctrl-n)", "Select below"]
+    , ["g, G", "Move to top, Move to bottom"]
+    , ["Ctrl-u, Ctrl-d", "Scroll keys half page up / down"]
+    , ["Ctrl-b, Ctrl-f", "Scroll keys one page up / down"]
     ]
 
 helpWidget :: BT.Widget ResourceName
@@ -684,7 +687,14 @@ initialize = do
   dir  <- IOUtils.createStashDirectoryIfNotExists
   ekey <- getEncryptionKeyWithConfirmation
   DB.bootstrap ekey
-  putStrLn $ "Initialized stash in " ++ dir
+  TIO.putStrLn $ T.intercalate
+    "\n"
+    [ T.append "Initialized stash in " $ T.pack dir
+    , "\nOnly a salted hash (good random salt + SHA512) of the encryption-key was saved."
+    , "You will be prompted for your encryption-key when needed."
+    , "(unless STASH_ENCRYPTION_KEY environment variable is set)\n"
+    , T.append "▸ Note: To undo initialization, just remove " $ T.pack dir
+    ]
 
 processCommand :: C.Command -> IO ()
 processCommand C.InitCommand = initialize
