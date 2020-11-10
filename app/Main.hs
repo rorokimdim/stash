@@ -5,6 +5,7 @@ import Control.Monad.Trans (liftIO)
 import Data.Default (def)
 import Data.List (sortBy, findIndex)
 import Data.Maybe (fromMaybe)
+import System.Exit (die)
 
 import qualified Brick.AttrMap as BA
 import qualified Brick.Main as BM
@@ -84,7 +85,7 @@ getEncryptionKey_ = do
     True
     False
   valid <- DB.checkEncryptionKey ekey
-  if valid then return ekey else fail "Encryption key is invalid for current stash database."
+  if valid then return ekey else die "☠️  Encryption key is invalid for current stash database."
 
 getEncryptionKeyWithConfirmation :: IO EncryptionKey
 getEncryptionKeyWithConfirmation =
