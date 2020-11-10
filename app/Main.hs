@@ -1,6 +1,6 @@
 module Main where
 
-import Control.Monad (void, unless)
+import Control.Monad (join, void, unless)
 import Control.Monad.Trans (liftIO)
 import Data.Default (def)
 import Data.List (sortBy, findIndex)
@@ -26,6 +26,7 @@ import qualified Graphics.Vty.Attributes as VA
 import qualified Options.Applicative as O
 import qualified Pretty.Diff as Diff
 import qualified System.Hclip as Hclip
+import qualified System.IO.Memoize as Memoize
 import qualified Text.Fuzzy as TF
 import qualified Text.Tabl as Table
 
@@ -70,8 +71,12 @@ app = BM.App
     [("selected", BU.bg V.cyan), ("currentPath", BU.fg V.white), ("sortPatternText", BU.fg V.white)]
   }
 
+-- |Gets encryption key from environment or user and memoizes it for subsequent calls.
 getEncryptionKey :: IO EncryptionKey
-getEncryptionKey = do
+getEncryptionKey = join $ Memoize.once getEncryptionKey_
+
+getEncryptionKey_ :: IO EncryptionKey
+getEncryptionKey_ = do
   ekey <- IOUtils.getEnvWithPromptFallback
     "STASH_ENCRYPTION_KEY"
     "Enter encryption key: "
