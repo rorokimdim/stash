@@ -4,18 +4,21 @@ module IOUtils
   , getEnvWithDefault
   , getEnvWithPromptFallback
   , getStashDirectory
+  , logTime
   , readString
   , readUserResponseYesNo
   , readValidatedString
-  , timeIt
   , UserResponseYesNo(..)
   )
 where
 import Control.Exception (try)
 import Data.Maybe (fromMaybe)
+import Data.Time (getCurrentTime, diffUTCTime, nominalDiffTimeToSeconds)
 import System.CPUTime (getCPUTime)
 import System.Environment (getEnv, setEnv)
+import Text.Printf (printf)
 
+import qualified Control.Logging as L
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
 import qualified System.Console.Haskeline as HL
@@ -126,10 +129,28 @@ edit fileExtension initialContent = do
   bytes <- TEditor.runSpecificEditor editor template $ TE.encodeUtf8 initialContent
   return $ TE.decodeUtf8 bytes
 
--- |Runs an IO action and returns the cpu-time in picoseconds and the result.
-timeIt :: IO a -> IO (Integer, a)
-timeIt ioa = do
-  startTime <- getCPUTime
-  a         <- ioa
-  endTime   <- getCPUTime
-  return (endTime - startTime, a)
+-- |Runs an IO action and logs timing information.
+logTime :: T.Text -> IO a -> IO a
+logTime message ioa = L.withStderrLogging $ do
+  startCPUTime <- getCPUTime
+  startTime    <- getCurrentTime
+  a            <- ioa
+  endCPUtime   <- getCPUTime
+  endTime      <- getCurrentTime
+
+  let
+    cpuDurationMS :: Double
+    cpuDurationMS = fromIntegral (endCPUtime - startCPUTime) * 1e-9
+
+    durationMS :: Double
+    durationMS = 1000 * realToFrac (diffUTCTime endTime startTime)
+
+  L.debug'
+    $  message
+    <> " [clock="
+    <> T.pack (printf "%.6fms" durationMS)
+    <> ", "
+    <> "cpu="
+    <> T.pack (printf "%.6fms" cpuDurationMS)
+    <> "]"
+  return a

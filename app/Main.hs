@@ -15,6 +15,7 @@ import qualified Brick.Widgets.Border.Style as BWBS
 import qualified Brick.Widgets.Core as BWC
 import qualified Brick.Widgets.Edit as BWE
 import qualified Brick.Widgets.List as BWL
+import qualified Control.Logging as L
 import qualified Data.HashMap.Strict as HM
 import qualified Data.HashSet as Set
 import qualified Data.IORef as IORef
@@ -718,8 +719,18 @@ processCommand cmd           = do
       C.DumpCommand   C.DumpFormatMarkdown   -> dump MarkdownText
       C.DumpCommand   C.DumpFormatOrg        -> dump OrgText
 
+setUpLogging :: IO ()
+setUpLogging = do
+  logLevel <- IOUtils.getEnvWithDefault "STASH_LOG_LEVEL" "INFO"
+  case logLevel of
+    "DEBUG" -> L.setLogLevel L.LevelDebug
+    "INFO"  -> L.setLogLevel L.LevelInfo
+    "WARN"  -> L.setLogLevel L.LevelWarn
+    _       -> L.setLogLevel L.LevelError
+
 main :: IO ()
 main = do
+  setUpLogging
   cmd <- O.customExecParser preferences opts
   processCommand cmd
  where

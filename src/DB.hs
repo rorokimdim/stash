@@ -194,7 +194,7 @@ getAllPlainNodes ekey = getAllNodes >>= decryptNodes ekey
 getAllNodes :: IO [Node]
 getAllNodes = do
   connectionString <- getConnectionString
-  withConnection connectionString $ \conn -> getAllNodes_ conn
+  IOUtils.logTime "getAllNodes" $ withConnection connectionString $ \conn -> getAllNodes_ conn
 
 getAllNodes_ :: Connection -> IO [Node]
 getAllNodes_ conn = do
@@ -301,7 +301,7 @@ deleteNodes_ conn nids = do
 
 -- |Decrypts a list of encrypted into into list to plain nodes.
 decryptNodes :: EncryptionKey -> [Node] -> IO [PlainNode]
-decryptNodes ekey nodes = mapM (decryptNode ekey) nodes
+decryptNodes ekey nodes = IOUtils.logTime "decryptNodes" $ mapM (decryptNode ekey) nodes
 
 -- |Decrypts an encrypted node into a plain node.
 decryptNode :: EncryptionKey -> Node -> IO PlainNode
