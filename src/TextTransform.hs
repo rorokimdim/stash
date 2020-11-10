@@ -17,13 +17,16 @@ type Depth = Int
 type Title = T.Text
 type Body = T.Text
 
+-- |Transforms a text value to titile for given format.
 toTitle :: TextFormat -> Depth -> Title -> Title
 toTitle MarkdownText depth t = T.concat [T.pack $ replicate depth '#', " ", t]
 toTitle OrgText      depth t = T.concat [T.pack $ replicate depth '*', " ", t]
 
+-- |Sorts a list of plain-nodes in lexicographical order.
 sortPlainNodesByKey :: [PlainNode] -> [PlainNode]
 sortPlainNodesByKey ns = sortBy f ns where f n1 n2 = __key n1 `compare` __key n2
 
+-- |Transforms a list of plain-nodes into text in given format.
 toText :: TextFormat -> [PlainNode] -> T.Text
 toText format plainNodes = T.intercalate "\n" $ map (fromPlainNode 1 T.empty) topNodes
  where
@@ -49,14 +52,17 @@ toText format plainNodes = T.intercalate "\n" $ map (fromPlainNode 1 T.empty) to
   topIds   = HM.lookupDefault [] 0 childMap
   topNodes = sortPlainNodesByKey [ idMap HM.! tid | tid <- topIds ]
 
+-- |Finds depth of a string in given format.
 depth :: TextFormat -> T.Text -> Int
 depth MarkdownText = T.length . T.takeWhile (== '#')
 depth OrgText      = T.length . T.takeWhile (== '*')
 
+-- |Converts given string into non-title string.
 untitleText :: TextFormat -> T.Text -> T.Text
 untitleText MarkdownText = T.strip . T.dropWhile (== '#')
 untitleText OrgText      = T.strip . T.dropWhile (== '*')
 
+-- |Reads provided text and calls given function with each pair of [PlainKey], Body found.
 walkText :: s -> TextFormat -> T.Text -> (s -> [PlainKey] -> Body -> IO s) -> IO s
 walkText state format t f = do
   let lines = T.lines t

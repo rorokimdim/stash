@@ -21,10 +21,12 @@ import qualified System.Entropy as Entropy
 
 import Types
 
+-- |Encrypts given PlainValue using given EncryptionKey.
 encrypt :: EncryptionKey -> PlainValue -> IO EncryptedValue
 encrypt key message = C.encrypt pkey (Encoding.encodeUtf8 message)
   where pkey = Padding.pad (Padding.PKCS7 32) (Char8.pack $ T.unpack key)
 
+-- |Decrypts an EncryptedValue using given EncryptionKey.
 decrypt :: EncryptionKey -> EncryptedValue -> IO PlainValue
 decrypt key message = do
   decryptedMessage <- C.decrypt pkey message
@@ -34,10 +36,13 @@ decrypt key message = do
     Right value -> return value
   where pkey = Padding.pad (Padding.PKCS7 32) (Char8.pack $ T.unpack key)
 
+-- |Computes hash of a value using given salt.
+-- Use generateHashSalt to get a good random salt.
 hash :: HashSalt -> T.Text -> T.Text
 hash salt value =
   T.pack $ SHA.showDigest $ SHA.sha512 $ LBS.fromStrict $ Encoding.encodeUtf8 $ T.append salt value
 
+-- |Generates a random salt to be used for hashing values.
 generateHashSalt :: IO HashSalt
 generateHashSalt = generateHashSalt_ 64
 

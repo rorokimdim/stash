@@ -22,23 +22,27 @@ import qualified Text.Editor as TEditor
 
 data UserResponseYesNo = URYes | URNo | URYesToAll | URNoToAll deriving (Eq, Show)
 
+-- |Gets directory to use for storing stash files.
 getStashDirectory :: IO String
 getStashDirectory = do
   dir <- getEnvWithDefault "STASH_DIRECTORY" ".stash"
   Directory.makeAbsolute $ T.unpack dir
 
+-- |Creates stash directory if it does not exist, and returns the stash directory path.
 createStashDirectoryIfNotExists :: IO String
 createStashDirectoryIfNotExists = do
   dir <- getStashDirectory
   Directory.createDirectoryIfMissing True dir
   return dir
 
+-- |Reads a string from user by prompting for it.
 readString :: String -> Bool -> IO T.Text
 readString prompt mask = HL.runInputT HL.defaultSettings $ do
   let reader = if mask then HL.getPassword (Just '*') else HL.getInputLine
   line <- reader prompt
   return $ T.pack $ fromMaybe "" line
 
+-- |Reads a non-empty string from user by prompting for it.
 readNonEmptyString :: String -> Bool -> IO T.Text
 readNonEmptyString prompt mask = do
   line <- readString prompt mask
@@ -48,12 +52,14 @@ readNonEmptyString prompt mask = do
       readNonEmptyString prompt mask
     else return line
 
+-- |Reads a string from user satisfying a predicate function.
 readValidatedString :: String -> Bool -> (T.Text -> IO Bool) -> IO T.Text
 readValidatedString prompt mask validator = do
   line  <- readString prompt mask
   valid <- validator line
   if valid then return line else readValidatedString prompt mask validator
 
+-- |Reads yes/no response from user.
 readUserResponseYesNo :: String -> IO UserResponseYesNo
 readUserResponseYesNo prompt = do
   let
@@ -72,6 +78,7 @@ readUserResponseYesNo prompt = do
     "yes-to-all" -> URYesToAll
     "no-to-all"  -> URNoToAll
 
+-- |Gets value of an environment variable, returning provided default-value if it is not set.
 getEnvWithDefault :: String -> T.Text -> IO T.Text
 getEnvWithDefault name defaultValue = do
   value <- try $ getEnv name
@@ -79,6 +86,7 @@ getEnvWithDefault name defaultValue = do
     Left  e   -> return defaultValue
     Right key -> return $ T.pack key
 
+-- |Gets value of an environment variable, and if it is not set, prompts for it.
 getEnvWithPromptFallback :: String -> String -> Bool -> Bool -> IO T.Text
 getEnvWithPromptFallback name promptMessage mask confirm = do
   value <- try $ getEnv name
@@ -104,6 +112,10 @@ getEnvWithPromptFallback name promptMessage mask confirm = do
     setEnv name $ T.unpack key
     return key
 
+-- |Opens given value in an editor and returned the edited value.
+--
+-- By default the editor set it EDITOR environment variable is used. If it is not set
+-- prompts user to enter editor command to use. If all fails, defaults to vim.
 edit :: String -> T.Text -> IO T.Text
 edit fileExtension initialContent = do
   let template = TEditor.mkTemplate fileExtension

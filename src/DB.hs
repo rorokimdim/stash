@@ -48,25 +48,30 @@ instance FromRow EncryptedKey where
 instance FromRow NodeId where
   fromRow = field
 
+-- |Gets path of database file.
 getDBPath :: IO String
 getDBPath = do
   dir <- IOUtils.getStashDirectory
   return $ combine dir "db"
 
+-- |Gets connections string to use for database connections.
 getConnectionString :: IO String
 getConnectionString = getDBPath
 
+-- |Checks if database file exists.
 doesDBExist :: IO Bool
 doesDBExist = do
   dbPath <- getDBPath
   doesFileExist dbPath
 
+-- |Checks if provided encryption key is valid per hash and salt stored in database.
 checkEncryptionKey :: EncryptionKey -> IO Bool
 checkEncryptionKey ekey = do
   storedSalt <- getConfig "hashSalt"
   storedHash <- getConfig "encryptionKeyHash"
   return $ Cipher.hash storedSalt ekey == storedHash
 
+-- |Bootstraps stash database.
 bootstrap :: EncryptionKey -> IO ()
 bootstrap ekey = do
   let splits  = T.splitOn ";;" bootstrapSQL
@@ -78,9 +83,11 @@ bootstrap ekey = do
     setConfig_ conn "hashSalt" salt
     setConfig_ conn "encryptionKeyHash" $ Cipher.hash salt ekey
 
+-- |Cleans given key and value.
 clean :: PlainKey -> PlainValue -> (PlainKey, PlainValue)
 clean k v = (T.strip k, T.strip v)
 
+-- |Adds a new node to database.
 addNode :: EncryptionKey -> ParentId -> PlainKey -> PlainValue -> IO NodeId
 addNode ekey pid key value = do
   let (cleanedKey, cleanedValue) = clean key value
@@ -100,6 +107,7 @@ addNode_ conn ekey pid key value = do
     query conn "SELECT id FROM node WHERE parent=? AND hkey=?" (pid, hkey) :: IO [Only NodeId]
   return nid
 
+-- |Saves a value under provided list of keys.
 save :: EncryptionKey -> [PlainKey] -> PlainValue -> IO [NodeId]
 save ekey ks value = do
   connectionString <- getConnectionString
@@ -114,6 +122,9 @@ save_ conn ekey pid (k : ks) value = do
   nids    <- save_ conn ekey nextPid ks value
   return $ nextPid : nids
 
+-- |Saves a value under a parent and key.
+--
+-- If a value already exists under the same parent and key, the old value is replaced.
 saveSingle :: Connection -> EncryptionKey -> ParentId -> PlainKey -> PlainValue -> Bool -> IO NodeId
 saveSingle conn ekey pid key value overwrite = do
   let (cleanedKey, cleanedValue) = clean key value
@@ -136,6 +147,7 @@ saveSingle conn ekey pid key value overwrite = do
     query conn "SELECT id FROM node WHERE parent=? AND hkey=?" (pid, hkey) :: IO [Only NodeId]
   return nid
 
+-- |Updates key and value of a node.
 updateNode :: EncryptionKey -> NodeId -> PlainKey -> PlainValue -> IO ()
 updateNode ekey nid key value = do
   let (cleanedKey, cleanedValue) = clean key value
@@ -152,16 +164,19 @@ updateNode_ conn ekey nid key value = do
   let sql = "UPDATE node SET hkey=?, hvalue=?, key=?, value=? WHERE id=?"
   execute conn (Query sql) (hkey, hvalue, encryptedKey, encryptedValue, nid)
 
+-- |Gets all plain nodes under provided parent.
 getPlainNodes :: EncryptionKey -> ParentId -> IO [PlainNode]
 getPlainNodes ekey pid = do
   nodes <- getNodes pid
   mapM (decryptNode ekey) nodes
 
+-- |Gets plain keys under provided parent.
 getPlainKeys :: EncryptionKey -> ParentId -> IO [PlainKey]
 getPlainKeys ekey pid = do
   keys <- getKeys pid
   mapM (Cipher.decrypt ekey) keys
 
+-- |Gets nodes under provided parent.
 getNodes :: ParentId -> IO [Node]
 getNodes pid = do
   connectionString <- getConnectionString
@@ -171,11 +186,13 @@ getNodes_ :: Connection -> ParentId -> IO [Node]
 getNodes_ conn pid = do
   query conn "SELECT * FROM node WHERE parent=?" (Only pid) :: IO [Node]
 
+-- |Gets all nodes in database in decrypted (plain-node) form.
 getAllPlainNodes :: EncryptionKey -> IO [PlainNode]
 getAllPlainNodes ekey = do
   nodes <- getAllNodes
   mapM (decryptNode ekey) nodes
 
+-- |Gets all nodes in database.
 getAllNodes :: IO [Node]
 getAllNodes = do
   connectionString <- getConnectionString
@@ -185,6 +202,7 @@ getAllNodes_ :: Connection -> IO [Node]
 getAllNodes_ conn = do
   query_ conn "SELECT * FROM node" :: IO [Node]
 
+-- |Gets keys under given parent.
 getKeys :: ParentId -> IO [EncryptedKey]
 getKeys pid = do
   connectionString <- getConnectionString
@@ -194,6 +212,7 @@ getKeys_ :: Connection -> ParentId -> IO [EncryptedKey]
 getKeys_ conn pid = do
   query conn "SELECT key FROM node WHERE parent=?" (Only pid) :: IO [EncryptedKey]
 
+-- |Gets sequence of keys that points to given node.
 getPath :: EncryptionKey -> NodeId -> IO [PlainKey]
 getPath ekey nid = do
   connectionString <- getConnectionString
@@ -224,6 +243,7 @@ getPath_ conn ekey nid = do
   keys <- query conn sql (Only nid) :: IO [EncryptedKey]
   mapM (Cipher.decrypt ekey) $ reverse keys
 
+-- |Gets all node ids in given sequence of keys.
 getIdsInPath :: [PlainKey] -> IO [NodeId]
 getIdsInPath ks = do
   connectionString <- getConnectionString
@@ -241,6 +261,7 @@ getIdsInPath_ conn pid (k : ks) = do
       return $ nid : cids
     Nothing -> return []
 
+-- |Gets ids of nodes under given node.
 getIds :: NodeId -> IO [NodeId]
 getIds startNodeId = do
   connectionString <- getConnectionString
@@ -268,6 +289,7 @@ getIds_ conn startNodeId = do
   |]
   query conn sql (Only startNodeId) :: IO [NodeId]
 
+-- |Deletes nodes by ids.
 deleteNodes :: [NodeId] -> IO ()
 deleteNodes nids = do
   connectionString <- getConnectionString
@@ -279,6 +301,7 @@ deleteNodes_ conn nids = do
   let sql = T.concat ["DELETE FROM node WHERE id IN (", T.pack sqlList, ")"]
   execute_ conn (Query sql)
 
+-- |Decrypts an encrypted node into a plain node.
 decryptNode :: EncryptionKey -> Node -> IO PlainNode
 decryptNode ekey n = do
   plainKey   <- Cipher.decrypt ekey (_key n)
@@ -295,6 +318,7 @@ decryptNode ekey n = do
     , __modified = _modified n
     }
 
+-- |Retrieves value of provided sequence of keys.
 retrieve :: EncryptionKey -> [PlainKey] -> IO (Maybe PlainValue)
 retrieve ekey ks = do
   connectionString <- getConnectionString
@@ -312,6 +336,7 @@ retrieve_ conn ekey pid (k : ks) = do
     Just nid -> retrieve_ conn ekey nid ks
     Nothing  -> return Nothing
 
+-- |Looks up id of a node under provided key and parent.
 lookupId :: Connection -> ParentId -> PlainKey -> IO (Maybe NodeId)
 lookupId conn pid k = do
   salt <- getHashSalt
@@ -322,6 +347,7 @@ lookupId conn pid k = do
     [Only nid] -> return $ Just nid
     []         -> return Nothing
 
+-- |Gets value of a node by id.
 getValueById :: Connection -> EncryptionKey -> NodeId -> IO (Maybe PlainValue)
 getValueById conn ekey nid = do
   [Only result] <-
@@ -332,6 +358,7 @@ getValueById conn ekey nid = do
       return (Just value)
     Nothing -> return Nothing
 
+-- |Gets configuration value of a name.
 getConfig :: T.Text -> IO T.Text
 getConfig name = do
   connectionString <- getConnectionString
@@ -344,6 +371,7 @@ getConfig_ conn name = do
     [Only value] -> return value
     []           -> return ""
 
+-- |Sets confiiguration value under a name.
 setConfig :: T.Text -> T.Text -> IO ()
 setConfig name value = do
   connectionString <- getConnectionString
@@ -356,6 +384,9 @@ setConfig_ conn name value = do
       = "INSERT INTO config (name, value) VALUES (?, ?) ON CONFLICT(name) DO UPDATE SET value=excluded.value"
   execute conn (Query $ T.pack insertSQL) (name, value)
 
+-- |Gets salt to use for hashing.
+--
+-- Reads salt stored in database and memoizes it for subsequent calls.
 getHashSalt :: IO HashSalt
 getHashSalt = join $ Memoize.once getHashSalt_
 
@@ -364,6 +395,7 @@ getHashSalt_ = do
   connectionString <- getConnectionString
   withConnection connectionString $ \conn -> getConfig_ conn "hashSalt"
 
+-- |Bootstrap SQL for creating necessary tables and indexes in sqlite database.
 bootstrapSQL :: T.Text
 bootstrapSQL = [r|
 CREATE TABLE IF NOT EXISTS config (
