@@ -8,6 +8,7 @@ module DB
   , getAllNodes
   , getAllPlainNodes
   , getConfig
+  , getDBPath
   , getIds
   , getIdsInPath
   , getKeys

@@ -708,7 +708,12 @@ initialize = do
 
 processCommand :: C.Command -> IO ()
 processCommand C.InitCommand = initialize
-processCommand cmd           = do
+processCommand cmd           = L.withStderrLogging $ do
+  stashDirectory <- IOUtils.getStashDirectory
+  dbPath         <- DB.getDBPath
+  L.debug' $ "stash directory is " <> T.pack stashDirectory
+  L.debug' $ "stash db path is " <> T.pack dbPath
+
   dbExists <- DB.doesDBExist
   if not dbExists
     then putStrLn "Not a stash directory. Try running: stash init"
