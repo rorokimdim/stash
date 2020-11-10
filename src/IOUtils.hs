@@ -92,7 +92,6 @@ getEnvWithPromptFallback name promptMessage mask confirm = do
   value <- try $ getEnv name
   case (value :: Either IOError String) of
     Left e -> do
-      putStrLn $ "▸ Set " ++ name ++ " to avoid being prompted."
       key0 <- readNonEmptyString promptMessage mask
       if confirm
         then do
