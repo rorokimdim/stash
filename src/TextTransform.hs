@@ -76,10 +76,10 @@ walkText state format t f = do
             then do
               process state xs [untitleText format x] []
             else do
-              newState <- f state titles $ T.intercalate "\n" bodies
+              newState <- f state titles $ T.strip $ T.intercalate "\n" bodies
               let newTitles = take (d - 1) titles ++ [untitleText format x]
               process newState xs newTitles []
         else process state xs titles (bodies ++ [T.strip x])
     process state [] []     _      = return state
-    process state [] titles bodies = f state titles $ T.intercalate "\n" bodies
+    process state [] titles bodies = f state titles $ T.strip $ T.intercalate "\n" bodies
   process state lines [] []
