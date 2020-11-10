@@ -188,9 +188,7 @@ getNodes_ conn pid = do
 
 -- |Gets all nodes in database in decrypted (plain-node) form.
 getAllPlainNodes :: EncryptionKey -> IO [PlainNode]
-getAllPlainNodes ekey = do
-  nodes <- getAllNodes
-  mapM (decryptNode ekey) nodes
+getAllPlainNodes ekey = getAllNodes >>= decryptNodes ekey
 
 -- |Gets all nodes in database.
 getAllNodes :: IO [Node]
@@ -300,6 +298,10 @@ deleteNodes_ conn nids = do
   let sqlList = intercalate ", " $ map show nids
   let sql = T.concat ["DELETE FROM node WHERE id IN (", T.pack sqlList, ")"]
   execute_ conn (Query sql)
+
+-- |Decrypts a list of encrypted into into list to plain nodes.
+decryptNodes :: EncryptionKey -> [Node] -> IO [PlainNode]
+decryptNodes ekey nodes = mapM (decryptNode ekey) nodes
 
 -- |Decrypts an encrypted node into a plain node.
 decryptNode :: EncryptionKey -> Node -> IO PlainNode

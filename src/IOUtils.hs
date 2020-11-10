@@ -7,11 +7,13 @@ module IOUtils
   , readString
   , readUserResponseYesNo
   , readValidatedString
+  , timeIt
   , UserResponseYesNo(..)
   )
 where
-import Control.Exception
-import Data.Maybe
+import Control.Exception (try)
+import Data.Maybe (fromMaybe)
+import System.CPUTime (getCPUTime)
 import System.Environment (getEnv, setEnv)
 
 import qualified Data.Text as T
@@ -123,3 +125,11 @@ edit fileExtension initialContent = do
   let editor = T.unpack $ if null editorCmdParts then "vim" else head editorCmdParts
   bytes <- TEditor.runSpecificEditor editor template $ TE.encodeUtf8 initialContent
   return $ TE.decodeUtf8 bytes
+
+-- |Runs an IO action and returns the cpu-time in picoseconds and the result.
+timeIt :: IO a -> IO (Integer, a)
+timeIt ioa = do
+  startTime <- getCPUTime
+  a         <- ioa
+  endTime   <- getCPUTime
+  return (endTime - startTime, a)
