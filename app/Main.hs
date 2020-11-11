@@ -89,8 +89,11 @@ getEncryptionKey_ = do
   if valid then return ekey else die "☠️  Encryption key is invalid for current stash database."
 
 getEncryptionKeyWithConfirmation :: IO EncryptionKey
-getEncryptionKeyWithConfirmation =
-  IOUtils.getEnvWithPromptFallback "STASH_ENCRYPTION_KEY" "Enter encryption key: " True True
+getEncryptionKeyWithConfirmation = do
+  ekey <- IOUtils.getEnvWithPromptFallback "STASH_ENCRYPTION_KEY" "Enter encryption key: " True True
+  unless (T.length ekey < 32)
+    $ die "☠️  Sorry, encryption key must currently be less than 32 characters."
+  return ekey
 
 pathWidget :: AppState -> BT.Widget ResourceName
 pathWidget state = BWC.withAttr "currentPath" $ BWC.txtWrap $ T.append ">> " $ T.intercalate
