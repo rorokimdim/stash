@@ -17,6 +17,7 @@ import qualified Brick.Widgets.Core as BWC
 import qualified Brick.Widgets.Edit as BWE
 import qualified Brick.Widgets.List as BWL
 import qualified Control.Logging as L
+import qualified Data.Algorithm.Diff as Diff
 import qualified Data.HashMap.Strict as HM
 import qualified Data.HashSet as Set
 import qualified Data.IORef as IORef
@@ -26,10 +27,10 @@ import qualified Data.Vector as Vec
 import qualified Graphics.Vty as V
 import qualified Graphics.Vty.Attributes as VA
 import qualified Options.Applicative as O
-import qualified Pretty.Diff as Diff
 import qualified System.Hclip as Hclip
 import qualified System.IO.Memoize as Memoize
 import qualified Text.Fuzzy as TF
+import qualified Text.PrettyPrint.ANSI.Leijen as PP
 import qualified Text.Tabl as Table
 
 import qualified CommandParsers as C
@@ -604,7 +605,23 @@ browseTUI = do
   void $ BM.defaultMain app initialState
 
 printDiff :: T.Text -> T.Text -> IO ()
-printDiff t1 t2 = TIO.putStrLn $ Diff.pretty def { Diff.separatorText = Just "changes to" } t1 t2
+printDiff t1 t2 = do
+  let diffs = Diff.getGroupedDiff (T.lines t1) (T.lines t2)
+
+  let
+    toDoc xs = PP.text $ T.unpack $ T.unlines xs
+    pdiff ((Diff.Both xs _) : ys) = do
+      if length xs <= 2 then PP.putDoc $ toDoc xs else TIO.putStrLn "..."
+      pdiff ys
+    pdiff ((Diff.First xs) : ys) = do
+      PP.putDoc $ PP.red $ "-" <> toDoc xs <> PP.linebreak
+      pdiff ys
+    pdiff ((Diff.Second xs) : ys) = do
+      PP.putDoc $ PP.green $ "+" <> toDoc xs <> PP.linebreak
+      pdiff ys
+    pdiff [] = return ()
+
+  pdiff diffs
 
 deleteInteractively :: [PlainNode] -> Bool -> IO ()
 deleteInteractively []       _     = return ()
@@ -659,7 +676,7 @@ browseText format = do
               IOUtils.URNoToAll -> return nodeIds
               _                 -> do
                 let oldBody = __value n
-                TIO.putStrLn $ T.concat ["Value of [", T.intercalate " > " ks, "] differ:"]
+                TIO.putStrLn $ T.concat ["▸ Value of [", T.intercalate " > " ks, "] differ:"]
                 printDiff oldBody body
 
                 userResponse <- IOUtils.readUserResponseYesNo "Accept this change?"

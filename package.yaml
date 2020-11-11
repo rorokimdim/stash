@@ -21,6 +21,7 @@ description:         Please see the README on GitHub at <https://github.com/roro
 
 dependencies:
 - base >= 4.7 && < 5
+- ansi-wl-pprint
 - Glob
 - SHA
 - base64-bytestring
@@ -29,6 +30,7 @@ dependencies:
 - crypto-simple
 - cryptonite
 - data-default
+- Diff
 - directory
 - editor-open
 - entropy
@@ -40,7 +42,6 @@ dependencies:
 - logging
 - mtl
 - optparse-applicative
-- pretty-diff
 - raw-strings-qq
 - sqlite-simple
 - tabl
