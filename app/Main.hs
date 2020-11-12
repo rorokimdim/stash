@@ -651,7 +651,7 @@ browseText format = do
   ekey       <- getEncryptionKey
   plainNodes <- DB.getAllPlainNodes ekey
   let nodeIds = [ __id n | n <- plainNodes ]
-  let oldText = TextTransform.toText format plainNodes
+  oldText             <- IOUtils.logTime "toText" $ pure $ TextTransform.toText format plainNodes
 
   lastUserResponseRef <- IORef.newIORef IOUtils.URNo
 
@@ -707,7 +707,9 @@ dump :: TextFormat -> IO ()
 dump format = do
   ekey       <- getEncryptionKey
   plainNodes <- DB.getAllPlainNodes ekey
-  TIO.putStrLn $ TextTransform.toText format plainNodes
+
+  text       <- IOUtils.logTime "toText" $ pure $ TextTransform.toText format plainNodes
+  TIO.putStrLn text
 
 initialize :: IO ()
 initialize = do
