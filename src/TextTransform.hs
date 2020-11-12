@@ -1,7 +1,9 @@
 module TextTransform
-  ( toText
+  ( depth
+  , toText
+  , toTitle
+  , untitleText
   , walkText
-  , TextFormat(..)
   )
 where
 
@@ -19,6 +21,7 @@ type Body = T.Text
 
 -- |Transforms a text value to titile for given format.
 toTitle :: TextFormat -> Depth -> Title -> Title
+toTitle _            0     t = t
 toTitle MarkdownText depth t = T.concat [T.pack $ replicate depth '#', " ", t]
 toTitle OrgText      depth t = T.concat [T.pack $ replicate depth '*', " ", t]
 

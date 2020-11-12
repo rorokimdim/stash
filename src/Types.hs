@@ -14,7 +14,7 @@ type ParentId = Integer
 type PlainKey = T.Text
 type PlainValue = T.Text
 
-data TextFormat = OrgText | MarkdownText
+data TextFormat = OrgText | MarkdownText deriving (Show)
 
 data Node = Node {
   _id :: NodeId,
