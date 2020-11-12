@@ -33,10 +33,12 @@ import qualified Text.Fuzzy as TF
 import qualified Text.PrettyPrint.ANSI.Leijen as PP
 import qualified Text.Tabl as Table
 
+import qualified Cipher
 import qualified CommandParsers as C
 import qualified DB
 import qualified IOUtils
 import qualified TextTransform
+
 import Types
 
 appVersion :: String
@@ -91,8 +93,11 @@ getEncryptionKey_ = do
 getEncryptionKeyWithConfirmation :: IO EncryptionKey
 getEncryptionKeyWithConfirmation = do
   ekey <- IOUtils.getEnvWithPromptFallback "STASH_ENCRYPTION_KEY" "Enter encryption key: " True True
-  unless (T.length ekey < 32)
-    $ die "☠️  Sorry, encryption key must currently be less than 32 characters."
+  unless (T.length ekey <= Cipher.maxEncryptionKeyLength)
+    $  die
+    $  "☠️  Sorry, encryption key can currently be upto "
+    ++ show Cipher.maxEncryptionKeyLength
+    ++ " characters."
   return ekey
 
 pathWidget :: AppState -> BT.Widget ResourceName

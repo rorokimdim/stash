@@ -3,6 +3,7 @@ module Cipher
   , decrypt
   , generateHashSalt
   , hash
+  , maxEncryptionKeyLength
   )
 where
 
@@ -22,10 +23,19 @@ import qualified System.Entropy as Entropy
 
 import Types
 
+-- |Checks if an encryption key in valid.
+maxEncryptionKeyLength :: Int
+maxEncryptionKeyLength = 31
+
 -- |Encrypts given PlainValue using given EncryptionKey.
 encrypt :: EncryptionKey -> PlainValue -> IO EncryptedValue
 encrypt key message = do
-  unless (T.length key < 32) $ fail "Encryption key must be < 32 characters."
+  unless (T.length key <= maxEncryptionKeyLength)
+    $  fail
+    $  "Encryption key must be <= "
+    ++ show maxEncryptionKeyLength
+    ++ " characters."
+
   let pkey = Padding.pad (Padding.PKCS7 32) (Char8.pack $ T.unpack key)
   C.encrypt pkey (Encoding.encodeUtf8 message)
 
@@ -33,7 +43,7 @@ encrypt key message = do
 decrypt :: EncryptionKey -> EncryptedValue -> IO PlainValue
 decrypt key message = do
   let errorMessage = "Encryption key is invalid for current database. Please use the correct key."
-  unless (T.length key < 32) $ fail errorMessage
+  unless (T.length key <= maxEncryptionKeyLength) $ fail errorMessage
   decryptedMessage <- C.decrypt pkey message
   let result = Encoding.decodeUtf8' decryptedMessage
   case (result :: Either E.UnicodeException PlainValue) of

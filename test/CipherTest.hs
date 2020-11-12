@@ -10,7 +10,7 @@ import qualified Data.HashSet as Set
 import qualified Data.Text as T
 import qualified Test.Tasty.QuickCheck as QC
 
-import Cipher (decrypt, encrypt, generateHashSalt, hash)
+import Cipher (decrypt, encrypt, generateHashSalt, hash, maxEncryptionKeyLength)
 
 tests :: TestTree
 tests = testGroup "Cipher Tests" [quickCheckTests, unitTests]
@@ -18,11 +18,13 @@ tests = testGroup "Cipher Tests" [quickCheckTests, unitTests]
 quickCheckTests :: TestTree
 quickCheckTests = testGroup
   "QuickCheck Tests"
-  [ QC.testProperty "Encrypted value decrypts to original value" $ \ekey value -> QC.ioProperty $ do
-    let trimmedKey = T.take 31 ekey
-    encrypted <- encrypt trimmedKey value
-    decrypted <- decrypt trimmedKey encrypted
-    return $ decrypted == value
+  [ QC.testProperty "Encrypted value decrypts to original value"
+  $ QC.withMaxSuccess 200
+  $ \ekey value -> QC.ioProperty $ do
+      let trimmedKey = T.take maxEncryptionKeyLength ekey
+      encrypted <- encrypt trimmedKey value
+      decrypted <- decrypt trimmedKey encrypted
+      return $ decrypted == value
   , QC.testProperty "Hash should be unique by salt" $ \value -> QC.ioProperty $ do
     salts <- forM [1 .. 20] $ \x -> QC.generate QC.arbitrary :: IO T.Text
     let uniqueSalts = Set.fromList salts
