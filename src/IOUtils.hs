@@ -13,7 +13,7 @@ module IOUtils
 where
 import Control.Exception (try)
 import Data.Maybe (fromMaybe)
-import Data.Time (getCurrentTime, diffUTCTime, nominalDiffTimeToSeconds)
+import Data.Time (getCurrentTime, diffUTCTime)
 import System.CPUTime (getCPUTime)
 import System.Environment (getEnv, setEnv)
 import Text.Printf (printf)

@@ -22,7 +22,7 @@ check_hlint() {
 prettify() {
     if hash $PRETTY_COMMAND 2>/dev/null; then
         echo "Prettifying code with $PRETTY_COMMAND..."
-        find src app test -name "*.hs" | xargs -n1 $PRETTY_COMMAND $PRETTY_COMMAND_ARGS
+        find src app test benchmark -name "*.hs" | xargs -n1 $PRETTY_COMMAND $PRETTY_COMMAND_ARGS
     else
         echo "Warning: $PRETTY_COMMAND command not found. Try: stack install $PRETTY_COMMAND"
     fi
@@ -44,7 +44,7 @@ check_hlint
 
 prettify
 maybe_update_version
-hlint -i "Eta reduce" -X QuasiQuotes src app test --color
+hlint -i "Eta reduce" -X QuasiQuotes src app test benchmark --color
 
 stack build --test
 stack install --local-bin-path bin/

@@ -42,6 +42,8 @@ dependencies:
 - logging
 - mtl
 - optparse-applicative
+- random
+- random-strings
 - raw-strings-qq
 - sqlite-simple
 - tabl
@@ -105,3 +107,15 @@ tests:
     - tasty
     - tasty-hunit
     - tasty-quickcheck
+
+benchmarks:
+  stash-benchmark:
+    main: bench.hs
+    source-dirs: benchmark
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - stash
+    - criterion

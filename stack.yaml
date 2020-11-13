@@ -46,6 +46,7 @@ extra-deps:
 - pretty-diff-0.2.0.2
 - sqlite-simple-0.4.18.0
 - tabl-1.0.3
+- random-strings-0.1.1.0
 
 # Override default flag values for local packages and extra-deps
 # flags: {}
