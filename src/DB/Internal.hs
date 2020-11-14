@@ -285,8 +285,12 @@ deleteNodes nids = do
 deleteNodes_ :: Connection -> [NodeId] -> IO ()
 deleteNodes_ conn nids = do
   let sqlList = intercalate ", " $ map show nids
-  let sql = T.concat ["DELETE FROM node WHERE id IN (", T.pack sqlList, ")"]
-  execute_ conn (Query sql)
+  let
+    sqls =
+      [ Query $ "DELETE FROM " <> table <> " WHERE id IN (" <> T.pack sqlList <> ")"
+      | table <- ["node", "node_history"]
+      ]
+  mapM_ (execute_ conn) sqls
 
 -- |Decrypts a list of encrypted into into list to plain nodes.
 decryptNodes :: EncryptionKey -> [Node] -> IO [PlainNode]
@@ -348,6 +352,33 @@ getValueById conn ekey nid = do
       value <- Cipher.decrypt ekey encryptedValue
       return (Just value)
     Nothing -> return Nothing
+
+-- |Gets all plain-versions of a node.
+getAllPlainNodeVersions :: EncryptionKey -> NodeId -> IO [PlainNode]
+getAllPlainNodeVersions ekey nid = do
+  connectionString <- getConnectionString
+  withConnection connectionString $ \conn -> getAllPlainNodeVersions_ conn ekey nid
+
+getAllPlainNodeVersions_ :: Connection -> EncryptionKey -> NodeId -> IO [PlainNode]
+getAllPlainNodeVersions_ conn ekey nid = do
+  nodes <- getAllNodeVersions_ conn nid
+  decryptNodes ekey nodes
+
+-- |Gets all versions of a node.
+getAllNodeVersions :: NodeId -> IO [Node]
+getAllNodeVersions nid = do
+  connectionString <- getConnectionString
+  withConnection connectionString $ \conn -> getAllNodeVersions_ conn nid
+
+getAllNodeVersions_ :: Connection -> NodeId -> IO [Node]
+getAllNodeVersions_ conn nid =
+  query
+    conn
+    (  "SELECT * FROM node WHERE id=? "
+    <> " UNION ALL "
+    <> "SELECT * FROM node_history WHERE id=? ORDER BY version DESC"
+    )
+    (nid, nid) :: IO [Node]
 
 -- |Gets configuration value of a name.
 getConfig :: T.Text -> IO T.Text

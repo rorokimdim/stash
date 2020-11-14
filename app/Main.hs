@@ -23,6 +23,7 @@ import qualified Data.HashSet as Set
 import qualified Data.IORef as IORef
 import qualified Data.Text as T
 import qualified Data.Text.IO as TIO
+import qualified Data.Time as Time
 import qualified Data.Vector as Vec
 import qualified Graphics.Vty as V
 import qualified Graphics.Vty.Attributes as VA
@@ -144,6 +145,7 @@ helpKeys = Table.tabl Table.EnvAscii hdecor vdecor aligns cells
     , ["/", "Search and sort by pattern"]
     , ["y", "Copy value of selected key into system clipboard"]
     , ["Enter", "Set value of selected key"]
+    , ["H", "See history of values of selected key"]
     , ["Left arrow (h)", "Move to parent of selected key"]
     , ["Right arrow (l)", "Move to child of selected key"]
     , ["Up arrow (k, Ctrl-p)", "Select above"]
@@ -237,7 +239,6 @@ copySelectedValue s = do
 
 editSelectedValue :: AppState -> IO AppState
 editSelectedValue s = do
-  let plainNodes              = _plainNodes s
   let ekey                    = _ekey s
   let (selectedNode, pid, si) = getSelected s
   let key                     = __key selectedNode
@@ -248,6 +249,24 @@ editSelectedValue s = do
   newValue <- IOUtils.edit ext value
   DB.updateNode ekey (__id selectedNode) key newValue
   buildState pid si s
+
+showHistoryOfSelectedValue :: AppState -> IO AppState
+showHistoryOfSelectedValue s = do
+  ekey         <- getEncryptionKey
+  userTimeZone <- Time.getCurrentTimeZone
+  let
+    (selectedNode, _, _) = getSelected s
+    modified             = Time.utcToLocalTime userTimeZone $ __modified selectedNode
+    path                 = T.append ">> " $ T.intercalate " > " (_currentPath s)
+
+  nodes <- DB.getAllPlainNodeVersions ekey (__id selectedNode)
+  let
+    history = ":: History for " <> path <> " ::" <> "\n" <> T.intercalate
+      "\n"
+      [ "▸ " <> T.pack (show modified) <> "\n" <> __value n | n <- nodes ]
+  IOUtils.edit "txt" history
+
+  return s
 
 validateGenericEditInput :: AppState -> IO ValidationResult
 validateGenericEditInput s@AppState { _uiMode = GENERIC_EDIT GERenameKey } = do
@@ -427,6 +446,7 @@ handleEvent s@AppState { _uiMode = BROWSE } event@(BT.VtyEvent e) = case e of
   V.EvKey (V.KChar '>') []        -> BM.continue $ prepareForAddChildKey s
   V.EvKey (V.KChar '-') []        -> BM.continue $ prepareForDeleteKey s
   V.EvKey (V.KChar 'y') []        -> liftIO (copySelectedValue s) >> BM.continue s
+  V.EvKey (V.KChar 'H') []        -> BM.suspendAndResume $ showHistoryOfSelectedValue s
   _                               -> handleSharedEvent s event
  where
   move s direction = do

@@ -5,7 +5,9 @@ module DB
   , decryptNode
   , deleteNodes
   , doesDBExist
+  , getAllNodeVersions
   , getAllNodes
+  , getAllPlainNodeVersions
   , getAllPlainNodes
   , getConfig
   , getDBPath
