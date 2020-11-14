@@ -29,17 +29,41 @@ the above command with `STASH_DIRECTORY` set will initialize stash in the set di
 stash browse
 ```
 
+| Shortcuts              | Description                                      |
+|------------------------|--------------------------------------------------|
+| ESC (q)                | Quit                                             |
+| ?                      | Show this help                                   |
+| +                      | Add a new key                                    |
+| >                      | Add a child key to selected key                  |
+| -                      | Delete selected key                              |
+| , (r)                  | Rename selected key                              |
+| /                      | Search and sort by pattern                       |
+| y                      | Copy value of selected key into system clipboard |
+| Enter                  | Set value of selected key                        |
+| H                      | See history of values of selected key            |
+| Left arrow (h)         | Move to parent of selected key                   |
+| Right arrow (l)        | Move to child of selected key                    |
+| Up arrow (k, Ctrl-p)   | Select above                                     |
+| Down arrow (j, Ctrl-n) | Select below                                     |
+| g, G                   | Move to top, Move to bottom                      |
+| Ctrl-u, Ctrl-d         | Scroll keys half page up / down                  |
+| Ctrl-b, Ctrl-f         | Scroll keys one page up / down                   |
+
 ### As Markdown text
 
 ```
 stash browse -f markdown
 ```
 
+Opens as markdown text in default editor. Set EDITOR environment variable to your editor command. Defaults to vim.
+
 ### As Org text
 
 ```
 stash browse -f org
 ```
+
+Opens as Org text in default editor. Set EDITOR environment variable to your editor command. Defaults to vim.
 
 ## Dumping contents to stdout
 
