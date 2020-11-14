@@ -2,25 +2,33 @@
 
 `stash` is a command line program for storing text data in encrypted form.
 
-It uses [sqlite](https://sqlite.org/) as its database. All user data is encrypted using [AES 256](https://en.wikipedia.org/wiki/Advanced_Encryption_Standard) cipher.
+It uses [sqlite](https://sqlite.org/) as its database.
+
+All user data is encrypted using [AES 256](https://en.wikipedia.org/wiki/Advanced_Encryption_Standard) cipher.
+
+Data is hashed for indexing purposes using a good random salt + [SHA512](https://en.wikipedia.org/wiki/SHA-2).
 
 ## Getting Started
 
-Run the following commnad in a directory where we want to store your stash.
+Run the following command in a directory where we want to store your stash.
 
 ```
 stash init
 ```
 
-This will create a `.stash` directory and initialize its `sqlite` database. We will also be
-prompted for the encryption-key (password) we wish to use for the stash. The key is not saved anywhere, but a
-salted hash (good random salt + SHA512) of the key and the salt used is saved in your `.stash` directory. The hash is
-checked with entered encryption-key when we run stash commands -- this ensures we don't accidentally use
-different encryption-key to store data. The salt is also used to hash our data -- to speed
-up searches and to check for changes.
+This will create a `.stash` directory and initialize its `sqlite` database.
 
-If we wish to keep a global stash, we can set `STASH_DIRECTORY` environemnt variable. Running
+We will be prompted for the encryption-key (password) we wish to use for the stash. The key is not saved anywhere, but a
+salted hash (good random salt + SHA512) of the key and the salt is saved in your `.stash` directory.
+
+When we run a stash command, we will be prompted for our encryption key. It is checked against the hash stored during
+`stash init`. For the duration of the command, the encryption key will be used for encrypting/decrypting data.
+
+The salt stored during `stash init` is also used for hashing any data for indexing purposes.
+
+If we wish to keep a global stash, we can set `STASH_DIRECTORY` environment variable. Running
 the above command with `STASH_DIRECTORY` set will initialize stash in the set directory.
+
 ## Browsing
 
 ### Terminal user interface (default)
