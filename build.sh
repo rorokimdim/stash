@@ -33,8 +33,6 @@ get_next_version() {
 }
 
 maybe_update_version() {
-    sed -i.backup "s/appVersion =.*/appVersion = \"$(get_next_version)\"/" stash.org
-    rm -rf stash.org.backup
     sed -i.backup "s/appVersion =.*/appVersion = \"$(get_next_version)\"/" app/Main.hs
     rm -rf app/Main.hs.backup
 }

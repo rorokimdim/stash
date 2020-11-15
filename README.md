@@ -87,6 +87,14 @@ stash dump -f markdown
 stash dump -f org
 ```
 
+## Backing up data
+
+```
+stash backup
+```
+
+Creates a timestamped copy of stash database in `.stash` directory.
+
 ## Shell Autocompletion
 
 ### bash

@@ -21,7 +21,7 @@ instance Show DumpFormat where
   show DumpFormatMarkdown = "markdown"
   show DumpFormatOrg      = "org"
 
-data Command = DumpCommand DumpFormat | BrowseCommand BrowseFormat | InitCommand
+data Command = DumpCommand DumpFormat | BrowseCommand BrowseFormat | BackupCommand | InitCommand
 
 browseFormatReader :: O.ReadM BrowseFormat
 browseFormatReader = O.eitherReader f
@@ -65,6 +65,9 @@ dumpCommandParser = DumpCommand <$> O.option
 initCommandParser :: O.Parser Command
 initCommandParser = pure InitCommand
 
+backupCommandParser :: O.Parser Command
+backupCommandParser = pure BackupCommand
+
 type CommandAlias = String
 type CommandDescription = String
 buildParser
@@ -80,7 +83,8 @@ buildParser xs = concat $ do
 
 commands :: [O.Mod O.CommandFields Command]
 commands = buildParser
-  [ (["browse"], browseCommandParser, "Browse stash")
+  [ (["backup"], backupCommandParser, "Backup stash")
+  , (["browse"], browseCommandParser, "Browse stash")
   , (["dump"]  , dumpCommandParser  , "Dump stash")
   , (["init"]  , initCommandParser  , "Initialize stash in current directory")
   ]

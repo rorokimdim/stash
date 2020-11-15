@@ -5,7 +5,9 @@ import Control.Monad.Trans (liftIO)
 import Data.Default (def)
 import Data.List (sortBy, findIndex)
 import Data.Maybe (fromMaybe)
+import System.Directory (copyFileWithMetadata)
 import System.Exit (die)
+import System.FilePath.Posix (combine)
 
 import qualified Brick.AttrMap as BA
 import qualified Brick.Main as BM
@@ -754,9 +756,21 @@ initialize = do
         , T.append "▸ Note: To undo initialization, just remove " $ T.pack dir
         ]
 
+backup :: IO ()
+backup = do
+  stashDirectory <- IOUtils.getStashDirectory
+  source         <- DB.getDBPath
+  userTime       <- Time.getZonedTime
+
+  let destination = combine stashDirectory $ filter (/= ' ') $ show userTime
+
+  copyFileWithMetadata source destination
+  putStrLn $ "Backed up " <> source <> " to " <> destination
+
 processCommand :: C.Command -> IO ()
-processCommand C.InitCommand = initialize
-processCommand cmd           = L.withStderrLogging $ do
+processCommand C.InitCommand   = initialize
+processCommand C.BackupCommand = backup
+processCommand cmd             = L.withStderrLogging $ do
   stashDirectory <- IOUtils.getStashDirectory
   dbPath         <- DB.getDBPath
   L.debug' $ "stash directory is " <> T.pack stashDirectory
