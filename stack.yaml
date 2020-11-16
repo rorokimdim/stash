@@ -40,6 +40,7 @@ packages:
 #   commit: e7b331f14bcffb8367cd58fbfc8b40ec7642100a
 #
 extra-deps:
+- bencode-0.6.1.1
 - crypto-simple-0.1.0.0
 - direct-sqlite-2.3.26
 - Hclip-3.0.0.4

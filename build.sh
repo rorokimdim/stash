@@ -44,5 +44,5 @@ prettify
 maybe_update_version
 hlint -i "Eta reduce" -X QuasiQuotes src app test benchmark --color
 
-stack build --test
+stack build
 stack install --local-bin-path bin/

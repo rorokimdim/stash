@@ -21,12 +21,15 @@ description:         Please see the README on GitHub at <https://github.com/roro
 
 dependencies:
 - base >= 4.7 && < 5
+- aeson
 - ansi-wl-pprint
 - Glob
 - SHA
 - base64-bytestring
+- bencode
 - brick
 - bytestring
+- containers
 - crypto-simple
 - cryptonite
 - data-default

@@ -95,6 +95,12 @@ stash backup
 
 Creates a timestamped copy of stash database in `.stash` directory.
 
+## Babashka pod support
+
+`stash` exposes a [bencode](https://en.wikipedia.org/wiki/Bencode) interface using [Babashka Pod Protocol](https://github.com/babashka/pods#the-protocol).
+
+If you are familiar with babashka, see [bb-example](https://github.com/rorokimdim/stash/tree/master/bb-example).
+
 ## Shell Autocompletion
 
 ### bash

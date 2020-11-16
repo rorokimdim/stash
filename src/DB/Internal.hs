@@ -7,6 +7,7 @@ import System.Directory (doesFileExist)
 import System.FilePath.Posix (combine)
 import Text.RawString.QQ
 
+import qualified Data.HashMap.Strict as HM
 import qualified System.IO.Memoize as Memoize
 
 import qualified IOUtils
@@ -136,6 +137,21 @@ saveSingle conn ekey pid key value overwrite = do
     query conn "SELECT id FROM node WHERE parent=? AND hkey=?" (pid, hkey) :: IO [Only NodeId]
   return nid
 
+-- |Updates value of a node.
+updateNodeValue :: EncryptionKey -> NodeId -> PlainValue -> IO ()
+updateNodeValue ekey nid value = do
+  let cleanedValue = T.strip value
+  connectionString <- getConnectionString
+  withConnection connectionString $ \conn -> updateNodeValue_ conn ekey nid cleanedValue
+
+updateNodeValue_ :: Connection -> EncryptionKey -> NodeId -> PlainValue -> IO ()
+updateNodeValue_ conn ekey nid value = do
+  salt <- getHashSalt
+  let hvalue = Cipher.hash salt value
+  encryptedValue <- Cipher.encrypt ekey value
+  let sql = "UPDATE node SET hvalue=?, value=? WHERE id=?"
+  execute conn (Query sql) (hvalue, encryptedValue, nid)
+
 -- |Updates key and value of a node.
 updateNode :: EncryptionKey -> NodeId -> PlainKey -> PlainValue -> IO ()
 updateNode ekey nid key value = do
@@ -174,6 +190,15 @@ getNodes pid = do
 getNodes_ :: Connection -> ParentId -> IO [Node]
 getNodes_ conn pid = do
   query conn "SELECT * FROM node WHERE parent=?" (Only pid) :: IO [Node]
+
+-- |Gets plain-node-tree starting from given parent-id.
+getPlainNodeTrees :: EncryptionKey -> ParentId -> IO [PlainNodeTree]
+getPlainNodeTrees ekey pid = do
+  plainNodes <- getPlainNodes ekey pid
+  mapM tf plainNodes where
+  tf n = do
+    children <- getPlainNodeTrees ekey $ __id n
+    return $ PlainNodeTree (HM.fromList [(__key n, (n, children))])
 
 -- |Gets all nodes in database in decrypted (plain-node) form.
 getAllPlainNodes :: EncryptionKey -> IO [PlainNode]
@@ -241,7 +266,7 @@ getIdsInPath_ _    _   []       = return []
 getIdsInPath_ conn pid (k : ks) = do
   salt <- getHashSalt
   let hkey = Cipher.hash salt k
-  result <- lookupId conn pid k
+  result <- lookupId_ conn pid k
   case result of
     Just nid -> do
       cids <- getIdsInPath_ conn nid ks
@@ -321,19 +346,24 @@ retrieve ekey ks = do
 
 retrieve_ :: Connection -> EncryptionKey -> ParentId -> [PlainKey] -> IO (Maybe PlainValue)
 retrieve_ conn ekey pid [k] = do
-  result <- lookupId conn pid k
+  result <- lookupId_ conn pid k
   case result of
     Just nid -> getValueById conn ekey nid
     Nothing  -> return Nothing
 retrieve_ conn ekey pid (k : ks) = do
-  result <- lookupId conn pid k
+  result <- lookupId_ conn pid k
   case result of
     Just nid -> retrieve_ conn ekey nid ks
     Nothing  -> return Nothing
 
 -- |Looks up id of a node under provided key and parent.
-lookupId :: Connection -> ParentId -> PlainKey -> IO (Maybe NodeId)
-lookupId conn pid k = do
+lookupId :: ParentId -> PlainKey -> IO (Maybe NodeId)
+lookupId pid k = do
+  connectionString <- getConnectionString
+  withConnection connectionString $ \conn -> lookupId_ conn pid k
+
+lookupId_ :: Connection -> ParentId -> PlainKey -> IO (Maybe NodeId)
+lookupId_ conn pid k = do
   salt <- getHashSalt
   let hkey = Cipher.hash salt k
   result <-

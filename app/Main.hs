@@ -4,7 +4,7 @@ import Control.Monad (join, void, unless)
 import Control.Monad.Trans (liftIO)
 import Data.Default (def)
 import Data.List (sortBy, findIndex)
-import Data.Maybe (fromMaybe)
+import Data.Maybe (fromMaybe, fromJust)
 import System.Directory (copyFileWithMetadata)
 import System.Exit (die)
 import System.FilePath.Posix (combine)
@@ -41,6 +41,7 @@ import qualified CommandParsers as C
 import qualified DB
 import qualified IOUtils
 import qualified TextTransform
+import qualified BabashkaPod as BPod
 
 import Types
 
@@ -249,7 +250,7 @@ editSelectedValue s = do
     ext = T.unpack $ if length splits > 1 then last splits else "txt"
       where splits = T.splitOn "." key
   newValue <- IOUtils.edit ext value
-  DB.updateNode ekey (__id selectedNode) key newValue
+  DB.updateNodeValue ekey (__id selectedNode) newValue
   buildState pid si s
 
 showHistoryOfSelectedValue :: AppState -> IO AppState
@@ -738,10 +739,21 @@ dump format = do
   text       <- IOUtils.logTime "toText" $ pure $ TextTransform.toText format plainNodes
   TIO.putStrLn text
 
+backup :: IO ()
+backup = do
+  stashDirectory <- IOUtils.getStashDirectory
+  source         <- DB.getDBPath
+  userTime       <- Time.getZonedTime
+
+  let destination = combine stashDirectory $ filter (/= ' ') $ show userTime
+
+  copyFileWithMetadata source destination
+  putStrLn $ "Backed up " <> source <> " to " <> destination
+
 initialize :: IO ()
 initialize = do
   dbExists <- DB.doesDBExist
-  dir      <- IOUtils.createStashDirectoryIfNotExists
+  dir      <- IOUtils.createStashDirectoryIfMissing
   if dbExists
     then TIO.putStrLn $ T.append "Reinitialized existing stash in " $ T.pack dir
     else do
@@ -755,17 +767,6 @@ initialize = do
         , "(unless STASH_ENCRYPTION_KEY environment variable is set)\n"
         , T.append "▸ Note: To undo initialization, just remove " $ T.pack dir
         ]
-
-backup :: IO ()
-backup = do
-  stashDirectory <- IOUtils.getStashDirectory
-  source         <- DB.getDBPath
-  userTime       <- Time.getZonedTime
-
-  let destination = combine stashDirectory $ filter (/= ' ') $ show userTime
-
-  copyFileWithMetadata source destination
-  putStrLn $ "Backed up " <> source <> " to " <> destination
 
 processCommand :: C.Command -> IO ()
 processCommand C.InitCommand   = initialize
@@ -798,8 +799,12 @@ setUpLogging = do
 main :: IO ()
 main = do
   setUpLogging
-  cmd <- O.customExecParser preferences opts
-  processCommand cmd
+  pod <- IOUtils.getEnvWithDefault "BABASHKA_POD" "false"
+  case pod of
+    "true"  -> BPod.interactWithBencode
+    "false" -> do
+      cmd <- O.customExecParser preferences opts
+      processCommand cmd
  where
   parser = O.subparser $ mconcat C.commands
   opts   = O.info

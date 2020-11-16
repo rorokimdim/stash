@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+
+CLASSPATH=$(clojure -Spath)
+
+# Prompt for encryption key
+echo -n "Enter encryption key: "
+read -s ekey
+
+STASH_ENCRYPTION_KEY=$ekey BABASHKA_PRELOADS='(load-file "stash.clj")' rlwrap bb --classpath $CLASSPATH "$@"

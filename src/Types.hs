@@ -1,9 +1,12 @@
 module Types where
 
-import qualified Data.Text as T
+import Data.Aeson ((.=), (.:), FromJSON, ToJSON, object, parseJSON, toJSON, withObject)
 
 import Data.ByteString (ByteString)
 import Data.Time (UTCTime)
+
+import qualified Data.HashMap.Strict as HM
+import qualified Data.Text as T
 
 type EncryptedKey = ByteString
 type EncryptedValue = ByteString
@@ -13,6 +16,8 @@ type NodeId = Integer
 type ParentId = Integer
 type PlainKey = T.Text
 type PlainValue = T.Text
+
+newtype PlainNodeTree = PlainNodeTree (HM.HashMap PlainKey (PlainNode, [PlainNodeTree])) deriving (Show)
 
 data TextFormat = OrgText | MarkdownText deriving (Show)
 
@@ -39,3 +44,43 @@ data PlainNode = PlainNode {
   __created :: UTCTime,
   __modified :: UTCTime
 } deriving (Show)
+
+instance ToJSON PlainNode where
+  toJSON PlainNode { __id = nid, __parent = pid, __hkey = hkey, __hvalue = hvalue, __key = key, __value = value, __version = version, __created = created, __modified = modified }
+    = object
+      [ "id" .= nid
+      , "parent-id" .= pid
+      , "hkey" .= hkey
+      , "hvalue" .= hvalue
+      , "key" .= key
+      , "value" .= value
+      , "version" .= version
+      , "created" .= created
+      , "modified" .= modified
+      ]
+
+instance FromJSON PlainNode where
+  parseJSON = withObject "PlainNode" $ \obj -> do
+    nid      <- obj .: "id"
+    pid      <- obj .: "parent-id"
+    hkey     <- obj .: "hkey"
+    hvalue   <- obj .: "hvalue"
+    key      <- obj .: "key"
+    value    <- obj .: "value"
+    version  <- obj .: "version"
+    created  <- obj .: "created"
+    modified <- obj .: "modified"
+    return PlainNode
+      { __id       = nid
+      , __parent   = pid
+      , __hkey     = hkey
+      , __hvalue   = hvalue
+      , __key      = key
+      , __value    = value
+      , __version  = version
+      , __created  = created
+      , __modified = modified
+      }
+
+instance ToJSON PlainNodeTree where
+  toJSON (PlainNodeTree m) = toJSON m

@@ -18,10 +18,13 @@ module DB
   , getPath
   , getPlainKeys
   , getPlainNodes
+  , getPlainNodeTrees
+  , lookupId
   , retrieve
   , save
   , setConfig
   , updateNode
+  , updateNodeValue
   )
 where
 

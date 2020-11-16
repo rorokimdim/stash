@@ -62,11 +62,11 @@ dumpCommandParser = DumpCommand <$> O.option
   <> O.showDefault
   )
 
-initCommandParser :: O.Parser Command
-initCommandParser = pure InitCommand
-
 backupCommandParser :: O.Parser Command
 backupCommandParser = pure BackupCommand
+
+initCommandParser :: O.Parser Command
+initCommandParser = pure InitCommand
 
 type CommandAlias = String
 type CommandDescription = String

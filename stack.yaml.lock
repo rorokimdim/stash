@@ -5,6 +5,13 @@
 
 packages:
 - completed:
+    hackage: bencode-0.6.1.1@sha256:55b2f5653738754182c124caa8ba2eb533dfaf24fa2c4c73438edee406188b22,1930
+    pantry-tree:
+      size: 515
+      sha256: 68c26781ad35d0732fd1a77301693e32723cff41d76f6ed04c9e513ed89693b8
+  original:
+    hackage: bencode-0.6.1.1
+- completed:
     hackage: crypto-simple-0.1.0.0@sha256:5c0e1e04a814d903743d7543245951a91a46817230fdf478fadca57116805fc1,1502
     pantry-tree:
       size: 472

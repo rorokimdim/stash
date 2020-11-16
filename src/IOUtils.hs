@@ -1,13 +1,15 @@
 module IOUtils
-  ( createStashDirectoryIfNotExists
+  ( createStashDirectoryIfMissing
   , edit
   , getEnvWithDefault
   , getEnvWithPromptFallback
   , getStashDirectory
   , logTime
+  , normalizePath
   , readString
   , readUserResponseYesNo
   , readValidatedString
+  , setStashDirectory
   , UserResponseYesNo(..)
   )
 where
@@ -16,6 +18,7 @@ import Data.Maybe (fromMaybe)
 import Data.Time (getCurrentTime, diffUTCTime)
 import System.CPUTime (getCPUTime)
 import System.Environment (getEnv, setEnv)
+import System.FilePath.Posix (pathSeparator)
 import Text.Printf (printf)
 
 import qualified Control.Logging as L
@@ -27,15 +30,29 @@ import qualified Text.Editor as TEditor
 
 data UserResponseYesNo = URYes | URNo | URYesToAll | URNoToAll deriving (Eq, Show)
 
+-- |Gets normalized file/directory path.
+normalizePath :: String -> IO String
+normalizePath ('~' : xs) = do
+  home <- Directory.getHomeDirectory
+  Directory.makeAbsolute $ home <> [pathSeparator] <> xs
+normalizePath p = Directory.makeAbsolute p
+
 -- |Gets directory to use for storing stash files.
 getStashDirectory :: IO String
 getStashDirectory = do
   dir <- getEnvWithDefault "STASH_DIRECTORY" ".stash"
-  Directory.makeAbsolute $ T.unpack dir
+  normalizePath $ T.unpack dir
+
+-- |Sets stash directory to given directory path.
+setStashDirectory :: String -> IO String
+setStashDirectory dir = do
+  normalizedPath <- normalizePath dir
+  setEnv "STASH_DIRECTORY" normalizedPath
+  return normalizedPath
 
 -- |Creates stash directory if it does not exist, and returns the stash directory path.
-createStashDirectoryIfNotExists :: IO String
-createStashDirectoryIfNotExists = do
+createStashDirectoryIfMissing :: IO String
+createStashDirectoryIfMissing = do
   dir <- getStashDirectory
   Directory.createDirectoryIfMissing True dir
   return dir
