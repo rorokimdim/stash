@@ -7,7 +7,6 @@ module Cipher
   )
 where
 
-import Control.Exception
 import Control.Monad (unless)
 
 import qualified Crypto.Data.Padding as Padding (pad, Format(..))

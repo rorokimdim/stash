@@ -2,18 +2,15 @@ module BabashkaPod where
 
 import Control.Exception (SomeException, evaluate, try)
 import Control.Monad (unless, when)
-import Data.Aeson ((.:), (.:?), FromJSON, Object, decode, encode, parseJSON, withObject)
+import Data.Aeson ((.:), (.:?), FromJSON, decode, encode, parseJSON, withObject)
 import Data.Maybe (fromMaybe, isNothing)
-import System.Environment (setEnv)
 import System.IO (hFlush, isEOF, stdout)
 
 import qualified Data.BEncode as BE
 import qualified Data.ByteString.Lazy as BSLazy
 import qualified Data.ByteString.Lazy.Char8 as C
-import qualified Data.HashMap.Strict as HMap
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as T
-import qualified Data.Text.Encoding as TE
 
 import qualified DB
 import qualified IOUtils

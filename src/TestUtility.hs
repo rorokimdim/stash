@@ -8,8 +8,8 @@ module TestUtility
   )
 where
 
-import Control.Monad (replicateM, sequence)
-import Data.Time (UTCTime, getCurrentTime)
+import Control.Monad (replicateM)
+import Data.Time (getCurrentTime)
 import System.Random (randomRIO)
 
 import qualified Data.Text as T

@@ -6,8 +6,6 @@ module CommandParsers
   )
 where
 
-import Types
-
 import qualified Options.Applicative as O
 
 data BrowseFormat = BrowseFormatMarkdown | BrowseFormatOrg | BrowseFormatTUI

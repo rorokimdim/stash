@@ -10,7 +10,6 @@ where
 import Data.List (sortBy)
 
 import qualified Data.HashMap.Strict as HM
-import qualified Data.List as L
 import qualified Data.Text as T
 
 import Types
