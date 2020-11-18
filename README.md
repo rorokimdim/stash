@@ -8,6 +8,8 @@ All user data is encrypted using [AES 256](https://en.wikipedia.org/wiki/Advance
 
 Data is hashed for indexing purposes using a good random salt + [SHA512](https://en.wikipedia.org/wiki/SHA-2).
 
+<img src="screenshots/fruits.png" width=350></img>
+
 ## Getting Started
 
 Run the following command in a directory where we want to store your stash.
