@@ -172,7 +172,12 @@ updateNode_ conn ekey nid key value = do
 -- |Gets all plain nodes under provided parent.
 getPlainNodes :: EncryptionKey -> ParentId -> IO [PlainNode]
 getPlainNodes ekey pid = do
-  nodes <- getNodes pid
+  connectionString <- getConnectionString
+  withConnection connectionString $ \conn -> getPlainNodes_ conn ekey pid
+
+getPlainNodes_ :: Connection -> EncryptionKey -> ParentId -> IO [PlainNode]
+getPlainNodes_ conn ekey pid = do
+  nodes <- getNodes_ conn pid
   mapM (decryptNode ekey) nodes
 
 -- |Gets plain keys under provided parent.
@@ -194,10 +199,15 @@ getNodes_ conn pid = do
 -- |Gets plain-node-tree starting from given parent-id.
 getPlainNodeTrees :: EncryptionKey -> ParentId -> IO [PlainNodeTree]
 getPlainNodeTrees ekey pid = do
-  plainNodes <- getPlainNodes ekey pid
+  connectionString <- getConnectionString
+  withConnection connectionString $ \conn -> getPlainNodeTrees_ conn ekey pid
+
+getPlainNodeTrees_ :: Connection -> EncryptionKey -> ParentId -> IO [PlainNodeTree]
+getPlainNodeTrees_ conn ekey pid = do
+  plainNodes <- getPlainNodes_ conn ekey pid
   mapM tf plainNodes where
   tf n = do
-    children <- getPlainNodeTrees ekey $ __id n
+    children <- getPlainNodeTrees_ conn ekey $ __id n
     return $ PlainNodeTree (HM.fromList [(__key n, (n, children))])
 
 -- |Gets all nodes in database in decrypted (plain-node) form.

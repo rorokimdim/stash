@@ -31,7 +31,7 @@ unitTests = testGroup
       assertEqual "getValueById" (Just "cantaloupe") value
       value <- DB.retrieve_ conn ekey 0 ["a", "b", "c"]
       assertEqual "retrieve" (Just "cantaloupe") value
-      nid <- DB.lookupId conn 2 "c"
+      nid <- DB.lookupId_ conn 2 "c"
       assertEqual "lookupId" (Just 3) nid
       DB.setConfig_ conn "haskell" "awesome"
       value <- DB.getConfig_ conn "haskell"
@@ -42,6 +42,8 @@ unitTests = testGroup
       assertEqual "getAllNodes" [1, 2, 3] [ _id n | n <- nodes ]
       path <- DB.getPath_ conn ekey 3
       assertEqual "getPath" ["a", "b", "c"] path
+      trees <- DB.getPlainNodeTrees_ conn ekey 0
+      assertEqual "getPlainNodeTrees" 1 (length trees)
       idsToDelete <- DB.getIds_ conn 2
       assertEqual "getIds" [2, 3] idsToDelete
       DB.deleteNodes_ conn idsToDelete
