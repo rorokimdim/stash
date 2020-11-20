@@ -24,6 +24,14 @@ toTitle _            0     t = t
 toTitle MarkdownText depth t = T.concat [T.pack $ replicate depth '#', " ", t]
 toTitle OrgText      depth t = T.concat [T.pack $ replicate depth '*', " ", t]
 
+-- |Transforms a text value to body for given format.
+toBody :: TextFormat -> Depth -> Body -> Body
+toBody _ 0 t = t
+toBody MarkdownText _ t =
+  T.unlines [ if "#" `T.isPrefixOf` x then " " <> x else x | x <- T.lines t ]
+toBody OrgText depth t =
+  T.unlines [ if "*" `T.isPrefixOf` x then " " <> x else x | x <- T.lines t ]
+
 -- |Sorts a list of plain-nodes in lexicographical order.
 sortPlainNodesByKey :: [PlainNode] -> [PlainNode]
 sortPlainNodesByKey ns = sortBy f ns where f n1 n2 = __key n1 `compare` __key n2
@@ -42,7 +50,7 @@ toText format plainNodes = T.intercalate "\n" $ map (fromPlainNode 1 T.empty) to
   fromPlainNode depth t n =
     let
       title  = toTitle format depth $ __key n
-      body   = __value n
+      body   = toBody format depth $ __value n
       ntext  = T.strip $ T.intercalate "\n" [t, title, body]
       cids   = HM.lookupDefault [] (__id n) childMap
       cnodes = sortPlainNodesByKey [ idMap HM.! cid | cid <- cids ]
