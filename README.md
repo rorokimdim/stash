@@ -2,8 +2,6 @@
 
 `stash` is a command line program for storing text data in encrypted form.
 
-It uses [sqlite](https://sqlite.org/) as its database.
-
 All user data is encrypted using [AES 256](https://en.wikipedia.org/wiki/Advanced_Encryption_Standard) cipher.
 
 Data is hashed for indexing purposes using a good random salt + [SHA512](https://en.wikipedia.org/wiki/SHA-2).
@@ -12,13 +10,13 @@ Data is hashed for indexing purposes using a good random salt + [SHA512](https:/
 
 ## Getting Started
 
-Run the following command in a directory where we want to store your stash.
+Run the following command in a directory where stash should store its data. Your Dropbox or Google Drive folder is probably a good choice.
 
 ```
 stash init
 ```
 
-This will create a `.stash` directory and initialize its `sqlite` database.
+This will create a `.stash` directory and initializes its database.
 
 We will be prompted for the encryption-key (password) we wish to use for the stash. The key is not saved anywhere, but a
 salted hash (good random salt + SHA512) of the key and the salt is saved in your `.stash` directory.
@@ -128,3 +126,9 @@ stash --zsh-completion-script `which stash`
 ```
 stash --fish-completion-script `which stash`
 ```
+
+## Credits
+
+1. [Haskell](https://www.haskell.org/)
+2. All of these [libraries](https://github.com/rorokimdim/stash/blob/master/package.yaml#L21) and all the things they depend on
+3. [sqlite](https://sqlite.org/)
