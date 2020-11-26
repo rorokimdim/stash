@@ -8,6 +8,28 @@ Data is hashed for indexing purposes using a good random salt + [SHA512](https:/
 
 <img src="screenshots/fruits.png" width=350></img>
 
+<!-- markdown-toc start - Don't edit this section. Run M-x markdown-toc-refresh-toc -->
+**Table of Contents**
+
+- [stash](#stash)
+    - [Getting Started](#getting-started)
+    - [Browsing](#browsing)
+        - [Terminal user interface (default)](#terminal-user-interface-default)
+        - [As Markdown text](#as-markdown-text)
+        - [As Org text](#as-org-text)
+    - [Dumping contents to stdout](#dumping-contents-to-stdout)
+        - [As Markdown text](#as-markdown-text-1)
+        - [As Org text](#as-org-text-1)
+    - [Backing up data](#backing-up-data)
+    - [Babashka pod support](#babashka-pod-support)
+    - [Shell Autocompletion](#shell-autocompletion)
+        - [bash](#bash)
+        - [zsh](#zsh)
+        - [fish](#fish)
+    - [Credits](#credits)
+
+<!-- markdown-toc end -->
+
 ## Getting Started
 
 Create a stash file.
