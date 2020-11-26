@@ -22,8 +22,9 @@ instance Show BrowseFormat where
   show BrowseFormatOrg      = "org"
   show BrowseFormatTUI      = "tui"
 
-data DumpFormat = DumpFormatMarkdown | DumpFormatOrg
+data DumpFormat = DumpFormatJSON | DumpFormatMarkdown | DumpFormatOrg
 instance Show DumpFormat where
+  show DumpFormatJSON     = "json"
   show DumpFormatMarkdown = "markdown"
   show DumpFormatOrg      = "org"
 
@@ -44,6 +45,7 @@ browseFormatReader = O.eitherReader f
 dumpFormatReader :: O.ReadM DumpFormat
 dumpFormatReader = O.eitherReader f
  where
+  f "json"     = Right DumpFormatJSON
   f "md"       = Right DumpFormatMarkdown
   f "markdown" = Right DumpFormatMarkdown
   f "org"      = Right DumpFormatOrg
@@ -66,10 +68,10 @@ dumpCommandParser = DumpCommand <$> stashFilePathArgument <*> O.option
   dumpFormatReader
   (  O.long "format"
   <> O.short 'f'
-  <> O.metavar "markdown | org"
+  <> O.metavar "json | markdown | org"
   <> O.help "Dump format"
   <> O.value DumpFormatOrg
-  <> O.completeWith ["markdown", "org"]
+  <> O.completeWith ["json", "markdown", "org"]
   <> O.showDefault
   )
 

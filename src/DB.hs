@@ -17,7 +17,7 @@ module DB
   , getPath
   , getPlainKeys
   , getPlainNodes
-  , getPlainNodeTrees
+  , getPlainTrees
   , lookupId
   , retrieve
   , save

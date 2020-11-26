@@ -17,9 +17,9 @@ type ParentId = Integer
 type PlainKey = T.Text
 type PlainValue = T.Text
 
-newtype PlainNodeTree = PlainNodeTree (HM.HashMap PlainKey (PlainNode, [PlainNodeTree])) deriving (Show)
+newtype PlainTree = PlainTree (HM.HashMap PlainKey (PlainValue, [PlainTree])) deriving (Show)
 
-data TextFormat = OrgText | MarkdownText deriving (Show)
+data TextFormat = JSONText | OrgText | MarkdownText deriving (Show)
 
 data Node = Node {
   _id :: NodeId,
@@ -82,5 +82,5 @@ instance FromJSON PlainNode where
       , __modified = modified
       }
 
-instance ToJSON PlainNodeTree where
-  toJSON (PlainNodeTree m) = toJSON m
+instance ToJSON PlainTree where
+  toJSON (PlainTree m) = toJSON m

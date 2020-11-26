@@ -147,7 +147,7 @@ handleTreesRequest s rid args = do
       Just [x] -> x
       _        -> 0
 
-  trees <- DB.getPlainNodeTrees ekey pid
+  trees <- DB.getPlainTrees ekey pid
   continueState s $ BE.BDict $ Map.fromList
     [ ("id"    , BE.BString rid)
     , ("value" , BE.BString $ encode trees)

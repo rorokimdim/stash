@@ -214,19 +214,19 @@ getNodes_ :: Connection -> ParentId -> IO [Node]
 getNodes_ conn pid = do
   query conn "SELECT * FROM node WHERE parent=?" (Only pid) :: IO [Node]
 
--- |Gets plain-node-tree starting from given parent-id.
-getPlainNodeTrees :: EncryptionKey -> ParentId -> IO [PlainNodeTree]
-getPlainNodeTrees ekey pid = do
+-- |Gets plain-tree starting from given parent-id.
+getPlainTrees :: EncryptionKey -> ParentId -> IO [PlainTree]
+getPlainTrees ekey pid = do
   connectionString <- getConnectionString
-  withConnection connectionString $ \conn -> getPlainNodeTrees_ conn ekey pid
+  withConnection connectionString $ \conn -> getPlainTrees_ conn ekey pid
 
-getPlainNodeTrees_ :: Connection -> EncryptionKey -> ParentId -> IO [PlainNodeTree]
-getPlainNodeTrees_ conn ekey pid = do
+getPlainTrees_ :: Connection -> EncryptionKey -> ParentId -> IO [PlainTree]
+getPlainTrees_ conn ekey pid = do
   plainNodes <- getPlainNodes_ conn ekey pid
   mapM tf plainNodes where
   tf n = do
-    children <- getPlainNodeTrees_ conn ekey $ __id n
-    return $ PlainNodeTree (HM.fromList [(__key n, (n, children))])
+    children <- getPlainTrees_ conn ekey $ __id n
+    return $ PlainTree (HM.fromList [(__key n, (__value n, children))])
 
 -- |Gets all nodes in database in decrypted (plain-node) form.
 getAllPlainNodes :: EncryptionKey -> IO [PlainNode]

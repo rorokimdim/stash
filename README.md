@@ -18,6 +18,7 @@ Data is hashed for indexing purposes using a good random salt + [SHA512](https:/
         - [As Markdown text](#as-markdown-text)
         - [As Org text](#as-org-text)
     - [Dumping contents to stdout](#dumping-contents-to-stdout)
+        - [As JSON text](#as-json-text)
         - [As Markdown text](#as-markdown-text-1)
         - [As Org text](#as-org-text-1)
     - [Backing up data](#backing-up-data)
@@ -93,6 +94,12 @@ stash browse -f org {path-to-stash-file}
 Opens as Org text in default editor. Set EDITOR environment variable to your editor command. Defaults to vim.
 
 ## Dumping contents to stdout
+
+### As JSON text
+
+```
+stash dump -f json {path-to-stash-file}
+```
 
 ### As Markdown text
 

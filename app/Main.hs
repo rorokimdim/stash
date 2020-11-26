@@ -18,7 +18,9 @@ import qualified Brick.Widgets.Core as BWC
 import qualified Brick.Widgets.Edit as BWE
 import qualified Brick.Widgets.List as BWL
 import qualified Control.Logging as L
+import qualified Data.Aeson.Encode.Pretty as AesonPretty
 import qualified Data.Algorithm.Diff as Diff
+import qualified Data.ByteString.Lazy.Char8 as BLC
 import qualified Data.HashMap.Strict as HM
 import qualified Data.HashSet as Set
 import qualified Data.IORef as IORef
@@ -731,6 +733,17 @@ browseText format = do
     deleteInteractively [ n | n <- plainNodes, Set.member (__id n) deletedNodeIds ] True
 
 dump :: TextFormat -> IO ()
+dump JSONText = do
+  ekey       <- getEncryptionKey
+  plainTrees <- DB.getPlainTrees ekey 0
+  let
+    config = AesonPretty.Config
+      { confIndent          = AesonPretty.Spaces 2
+      , confCompare         = mempty
+      , confNumFormat       = AesonPretty.Generic
+      , confTrailingNewline = False
+      }
+  BLC.putStrLn $ AesonPretty.encodePretty' config plainTrees
 dump format = do
   ekey       <- getEncryptionKey
   plainNodes <- DB.getAllPlainNodes ekey
@@ -795,6 +808,7 @@ processCommand (C.BrowseCommand dbPath format) = do
 processCommand (C.DumpCommand dbPath format) = do
   initialize dbPath False
   case format of
+    C.DumpFormatJSON     -> dump JSONText
     C.DumpFormatMarkdown -> dump MarkdownText
     C.DumpFormatOrg      -> dump OrgText
 

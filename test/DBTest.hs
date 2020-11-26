@@ -42,8 +42,8 @@ unitTests = testGroup
       assertEqual "getAllNodes" [1, 2, 3] [ _id n | n <- nodes ]
       path <- DB.getPath_ conn ekey 3
       assertEqual "getPath" ["a", "b", "c"] path
-      trees <- DB.getPlainNodeTrees_ conn ekey 0
-      assertEqual "getPlainNodeTrees" 1 (length trees)
+      trees <- DB.getPlainTrees_ conn ekey 0
+      assertEqual "getPlainTrees" 1 (length trees)
       idsToDelete <- DB.getIds_ conn 2
       assertEqual "getIds" [2, 3] idsToDelete
       DB.deleteNodes_ conn idsToDelete
