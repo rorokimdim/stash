@@ -2,9 +2,8 @@ name:                stash
 version:             0.1.0
 github:              "rorokimdim/stash"
 license:             BSD3
-author:              "Author name here"
-maintainer:          "example@example.com"
-copyright:           "2020 Author name here"
+author:              "Amit Shrestha"
+copyright:           "2020 Amit Shrestha"
 
 extra-source-files:
 - README.md
@@ -22,7 +21,6 @@ dependencies:
 - base >= 4.7 && < 5
 - aeson
 - ansi-wl-pprint
-- Glob
 - SHA
 - base64-bytestring
 - bencode

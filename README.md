@@ -10,31 +10,28 @@ Data is hashed for indexing purposes using a good random salt + [SHA512](https:/
 
 ## Getting Started
 
-Run the following command in a directory where stash should store its data. Your Dropbox or Google Drive folder is probably a good choice.
+Create a stash file.
 
 ```
-stash init
+stash create {path-to-stash-file}
 ```
 
-This will create a `.stash` directory and initializes its database.
+Replace `{path-to-stash-file}` with path to the stash file. For example `~/Dropbox/secret.stash`.
 
-We will be prompted for the encryption-key (password) we wish to use for the stash. The key is not saved anywhere, but a
-salted hash (good random salt + SHA512) of the key and the salt is saved in your `.stash` directory.
+Stash will prompt for the encryption-key (password) to use for the file. The key is not saved anywhere, but a
+salted hash (good random salt + SHA512) of the key and the salt is saved.
 
 When we run a stash command, we will be prompted for our encryption key. It is checked against the hash stored during
-`stash init`. For the duration of the command, the encryption key will be used for encrypting/decrypting data.
+`stash create`. For the duration of the command, the encryption key will be used for encrypting/decrypting data.
 
-The salt stored during `stash init` is also used for hashing any data for indexing purposes.
-
-If we wish to keep a global stash, we can set `STASH_DIRECTORY` environment variable. Running
-the above command with `STASH_DIRECTORY` set will initialize stash in the set directory.
+The salt stored during `stash create` is also used for hashing any data for indexing purposes.
 
 ## Browsing
 
 ### Terminal user interface (default)
 
 ```
-stash browse
+stash browse {path-to-stash-file}
 ```
 
 | Shortcuts              | Description                                      |
@@ -60,7 +57,7 @@ stash browse
 ### As Markdown text
 
 ```
-stash browse -f markdown
+stash browse -f markdown {path-to-stash-file}
 ```
 
 Opens as markdown text in default editor. Set EDITOR environment variable to your editor command. Defaults to vim.
@@ -68,7 +65,7 @@ Opens as markdown text in default editor. Set EDITOR environment variable to you
 ### As Org text
 
 ```
-stash browse -f org
+stash browse -f org {path-to-stash-file}
 ```
 
 Opens as Org text in default editor. Set EDITOR environment variable to your editor command. Defaults to vim.
@@ -78,22 +75,22 @@ Opens as Org text in default editor. Set EDITOR environment variable to your edi
 ### As Markdown text
 
 ```
-stash dump -f markdown
+stash dump -f markdown {path-to-stash-file}
 ```
 
 ### As Org text
 
 ```
-stash dump -f org
+stash dump -f org {path-to-stash-file}
 ```
 
 ## Backing up data
 
 ```
-stash backup
+stash backup {path-to-stash-file}
 ```
 
-Creates a timestamped copy of stash database in `.stash` directory.
+Creates a timestamped copy of stash file in the same directory as the original file.
 
 ## Babashka pod support
 

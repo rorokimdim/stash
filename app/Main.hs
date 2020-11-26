@@ -1,13 +1,12 @@
 module Main where
 
-import Control.Monad (join, void, unless)
+import Control.Monad (join, void, unless, when)
 import Control.Monad.Trans (liftIO)
-import Data.Default (def)
-import Data.List (sortBy, findIndex)
-import Data.Maybe (fromMaybe, fromJust)
-import System.Directory (copyFileWithMetadata)
+import Data.List (sortBy, findIndex, isSuffixOf)
+import Data.Maybe (fromMaybe)
+import System.Directory (copyFileWithMetadata, doesDirectoryExist)
 import System.Exit (die)
-import System.FilePath.Posix (combine)
+import System.FilePath.Posix (combine, takeDirectory, takeFileName)
 
 import qualified Brick.AttrMap as BA
 import qualified Brick.Main as BM
@@ -741,51 +740,63 @@ dump format = do
 
 backup :: IO ()
 backup = do
-  stashDirectory <- IOUtils.getStashDirectory
-  source         <- DB.getDBPath
-  userTime       <- Time.getZonedTime
+  source   <- DB.getDBPath
+  userTime <- Time.getZonedTime
 
-  let destination = combine stashDirectory $ filter (/= ' ') $ show userTime
+  let
+    destinationDirectory = takeDirectory source
+    destinationFileName =
+      "backup-" <> takeFileName source <> "-" <> filter (/= ' ') (show userTime)
+    destination = combine destinationDirectory destinationFileName
 
   copyFileWithMetadata source destination
   putStrLn $ "Backed up " <> source <> " to " <> destination
 
-initialize :: IO ()
-initialize = do
-  dbExists <- DB.doesDBExist
-  dir      <- IOUtils.createStashDirectoryIfMissing
-  if dbExists
-    then TIO.putStrLn $ T.append "Reinitialized existing stash in " $ T.pack dir
-    else do
+initialize :: FilePath -> Bool -> IO ()
+initialize path createIfMissing = do
+  dbPath           <- DB.setDBPath path
+  validationResult <- DB.validateDBPath dbPath
+  case validationResult of
+    DB.NonExistentDBFile -> do
+      unless createIfMissing $ die $ "☠️  stash file " <> dbPath <> " does not exist."
+      isDirectory <- doesDirectoryExist dbPath
+      when isDirectory
+        $  die
+        $  "☠️  "
+        <> dbPath
+        <> " is a directory. Did you mean "
+        <> dbPath
+        <> ".stash?"
+      TIO.putStrLn $ "Creating new stash file " <> T.pack dbPath <> "..."
       ekey <- getEncryptionKeyWithConfirmation
+      IOUtils.createMissingDirectories dbPath
       DB.bootstrap ekey
       TIO.putStrLn $ T.intercalate
         "\n"
-        [ T.append "Initialized stash in " $ T.pack dir
+        [ T.append "Created stash file " $ T.pack dbPath
         , "\nOnly a salted hash (good random salt + SHA512) of the encryption-key was saved."
-        , "You will be prompted for your encryption-key when needed."
-        , "(unless STASH_ENCRYPTION_KEY environment variable is set)\n"
-        , T.append "▸ Note: To undo initialization, just remove " $ T.pack dir
+        , "Stash will prompt for the encryption-key when needed."
+        , "(unless STASH_ENCRYPTION_KEY environment variable is set)"
         ]
+    DB.InvalidDBFile -> die $ "☠️  Invalid stash file " <> dbPath
+    DB.ValidDBFile   -> return ()
 
 processCommand :: C.Command -> IO ()
-processCommand C.InitCommand   = initialize
-processCommand C.BackupCommand = backup
-processCommand cmd             = L.withStderrLogging $ do
-  stashDirectory <- IOUtils.getStashDirectory
-  dbPath         <- DB.getDBPath
-  L.debug' $ "stash directory is " <> T.pack stashDirectory
-  L.debug' $ "stash db path is " <> T.pack dbPath
-
-  dbExists <- DB.doesDBExist
-  if not dbExists
-    then putStrLn "Not a stash directory. Try running: stash init"
-    else case cmd of
-      C.BrowseCommand C.BrowseFormatTUI      -> browseTUI
-      C.BrowseCommand C.BrowseFormatMarkdown -> browseText MarkdownText
-      C.BrowseCommand C.BrowseFormatOrg      -> browseText OrgText
-      C.DumpCommand   C.DumpFormatMarkdown   -> dump MarkdownText
-      C.DumpCommand   C.DumpFormatOrg        -> dump OrgText
+processCommand (C.CreateCommand dbPath) = initialize dbPath True
+processCommand (C.BackupCommand dbPath) = do
+  initialize dbPath False
+  backup
+processCommand (C.BrowseCommand dbPath format) = do
+  initialize dbPath False
+  case format of
+    C.BrowseFormatTUI      -> browseTUI
+    C.BrowseFormatMarkdown -> browseText MarkdownText
+    C.BrowseFormatOrg      -> browseText OrgText
+processCommand (C.DumpCommand dbPath format) = do
+  initialize dbPath False
+  case format of
+    C.DumpFormatMarkdown -> dump MarkdownText
+    C.DumpFormatOrg      -> dump OrgText
 
 setUpLogging :: IO ()
 setUpLogging = do

@@ -1,10 +1,12 @@
 module DB.Internal where
 
+import Control.Exception (SomeException, try)
 import Control.Monad (join)
 import Data.List (intercalate)
 import Database.SQLite.Simple
 import System.Directory (doesFileExist)
-import System.FilePath.Posix (combine)
+import System.Environment (getEnv, setEnv)
+import System.Exit (die)
 import Text.RawString.QQ
 
 import qualified Data.HashMap.Strict as HM
@@ -17,6 +19,8 @@ import Types
 
 import qualified Data.Text as T
 
+data DBPathValidationResult = NonExistentDBFile | InvalidDBFile | ValidDBFile
+
 instance FromRow Node where
   fromRow =
     Node <$> field <*> field <*> field <*> field <*> field <*> field <*> field <*> field <*> field
@@ -27,11 +31,16 @@ instance FromRow EncryptedKey where
 instance FromRow NodeId where
   fromRow = field
 
--- |Gets path of database file.
+-- |Sets stash database path.
+setDBPath :: FilePath -> IO FilePath
+setDBPath dbPath = do
+  normalizedPath <- IOUtils.normalizePath dbPath
+  setEnv "STASH_DB_PATH" normalizedPath
+  return normalizedPath
+
+-- |Gets stash database path.
 getDBPath :: IO String
-getDBPath = do
-  dir <- IOUtils.getStashDirectory
-  return $ combine dir "db"
+getDBPath = getEnv "STASH_DB_PATH"
 
 -- |Gets connections string to use for database connections.
 getConnectionString :: IO String
@@ -44,11 +53,17 @@ runInMemoryDB :: (Connection -> IO a) -> IO a
 runInMemoryDB ioa = do
   withConnection ":memory:" ioa
 
--- |Checks if database file exists.
-doesDBExist :: IO Bool
-doesDBExist = do
-  dbPath <- getDBPath
-  doesFileExist dbPath
+-- |Checks if given database path is a valid database.
+validateDBPath :: FilePath -> IO DBPathValidationResult
+validateDBPath dbPath = do
+  fileExists <- doesFileExist dbPath
+  if fileExists
+    then do
+      trySalt <- try $ withConnection dbPath $ \conn -> getHashSalt_ conn
+      case (trySalt :: Either SomeException HashSalt) of
+        Left  e -> return InvalidDBFile
+        Right _ -> return ValidDBFile
+    else return NonExistentDBFile
 
 -- |Checks if provided encryption key is valid per hash and salt stored in database.
 checkEncryptionKey :: EncryptionKey -> IO Bool
@@ -61,7 +76,10 @@ checkEncryptionKey ekey = do
 bootstrap :: EncryptionKey -> IO ()
 bootstrap ekey = do
   connectionString <- getConnectionString
-  withConnection connectionString $ \conn -> bootstrap_ conn ekey
+  tryBootstrap     <- try $ withConnection connectionString $ \conn -> bootstrap_ conn ekey
+  case (tryBootstrap :: Either SomeException ()) of
+    Left  e -> die $ "Failed to create stash file at " <> connectionString
+    Right _ -> return ()
 
 bootstrap_ :: Connection -> EncryptionKey -> IO ()
 bootstrap_ conn ekey = do
@@ -88,7 +106,7 @@ addNode_ :: Connection -> EncryptionKey -> ParentId -> PlainKey -> PlainValue ->
 addNode_ conn ekey pid key value = do
   encryptedKey   <- Cipher.encrypt ekey key
   encryptedValue <- Cipher.encrypt ekey value
-  salt           <- getHashSalt
+  salt           <- getHashSalt_ conn
   let hkey      = Cipher.hash salt key
   let hvalue    = Cipher.hash salt value
   let insertSQL = "INSERT INTO node (parent, hkey, hvalue, key, value) VALUES (?, ?, ?, ?, ?)"
@@ -120,7 +138,7 @@ saveSingle conn ekey pid key value overwrite = do
   let (cleanedKey, cleanedValue) = clean key value
   encryptedKey   <- Cipher.encrypt ekey cleanedKey
   encryptedValue <- Cipher.encrypt ekey cleanedValue
-  salt           <- getHashSalt
+  salt           <- getHashSalt_ conn
   let hkey   = Cipher.hash salt cleanedKey
   let hvalue = Cipher.hash salt cleanedValue
   let
@@ -146,7 +164,7 @@ updateNodeValue ekey nid value = do
 
 updateNodeValue_ :: Connection -> EncryptionKey -> NodeId -> PlainValue -> IO ()
 updateNodeValue_ conn ekey nid value = do
-  salt <- getHashSalt
+  salt <- getHashSalt_ conn
   let hvalue = Cipher.hash salt value
   encryptedValue <- Cipher.encrypt ekey value
   let sql = "UPDATE node SET hvalue=?, value=? WHERE id=?"
@@ -161,7 +179,7 @@ updateNode ekey nid key value = do
 
 updateNode_ :: Connection -> EncryptionKey -> NodeId -> PlainKey -> PlainValue -> IO ()
 updateNode_ conn ekey nid key value = do
-  salt <- getHashSalt
+  salt <- getHashSalt_ conn
   let hkey   = Cipher.hash salt key
   let hvalue = Cipher.hash salt value
   encryptedKey   <- Cipher.encrypt ekey key
@@ -274,7 +292,7 @@ getIdsInPath ks = do
 getIdsInPath_ :: Connection -> ParentId -> [PlainKey] -> IO [NodeId]
 getIdsInPath_ _    _   []       = return []
 getIdsInPath_ conn pid (k : ks) = do
-  salt <- getHashSalt
+  salt <- getHashSalt_ conn
   let hkey = Cipher.hash salt k
   result <- lookupId_ conn pid k
   case result of
@@ -374,7 +392,7 @@ lookupId pid k = do
 
 lookupId_ :: Connection -> ParentId -> PlainKey -> IO (Maybe NodeId)
 lookupId_ conn pid k = do
-  salt <- getHashSalt
+  salt <- getHashSalt_ conn
   let hkey = Cipher.hash salt k
   result <-
     query conn "SELECT id FROM node WHERE parent=? AND hkey=?" (pid, hkey) :: IO [Only NodeId]
@@ -450,12 +468,12 @@ setConfig_ conn name value = do
 --
 -- Reads salt stored in database and memoizes it for subsequent calls.
 getHashSalt :: IO HashSalt
-getHashSalt = join $ Memoize.once getHashSalt_
-
-getHashSalt_ :: IO HashSalt
-getHashSalt_ = do
+getHashSalt = join $ Memoize.once $ do
   connectionString <- getConnectionString
-  withConnection connectionString $ \conn -> getConfig_ conn "hashSalt"
+  withConnection connectionString $ \conn -> getHashSalt_ conn
+
+getHashSalt_ :: Connection -> IO HashSalt
+getHashSalt_ conn = getConfig_ conn "hashSalt"
 
 -- |Bootstrap SQL for creating necessary tables and indexes in sqlite database.
 bootstrapSQL :: T.Text

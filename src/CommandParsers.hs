@@ -6,7 +6,15 @@ module CommandParsers
   )
 where
 
+import Data.List (isPrefixOf, isSuffixOf)
+import Data.String (IsString)
+import System.FilePath.Posix
+  (addTrailingPathSeparator, combine, hasTrailingPathSeparator, takeDirectory, takeFileName)
+
 import qualified Options.Applicative as O
+import qualified System.Directory as Directory
+
+import qualified IOUtils
 
 data BrowseFormat = BrowseFormatMarkdown | BrowseFormatOrg | BrowseFormatTUI
 instance Show BrowseFormat where
@@ -19,7 +27,10 @@ instance Show DumpFormat where
   show DumpFormatMarkdown = "markdown"
   show DumpFormatOrg      = "org"
 
-data Command = DumpCommand DumpFormat | BrowseCommand BrowseFormat | BackupCommand | InitCommand
+data Command = DumpCommand FilePath DumpFormat
+             | BrowseCommand FilePath BrowseFormat
+             | BackupCommand FilePath
+             | CreateCommand FilePath
 
 browseFormatReader :: O.ReadM BrowseFormat
 browseFormatReader = O.eitherReader f
@@ -39,32 +50,66 @@ dumpFormatReader = O.eitherReader f
   f x          = Left $ "Invalid dump format " ++ x
 
 browseCommandParser :: O.Parser Command
-browseCommandParser = BrowseCommand <$> O.option
+browseCommandParser = BrowseCommand <$> stashFilePathArgument <*> O.option
   browseFormatReader
   (  O.long "format"
   <> O.short 'f'
   <> O.metavar "markdown | org | tui"
   <> O.help "Browse format"
   <> O.value BrowseFormatTUI
+  <> O.completeWith ["markdown", "org", "tui"]
   <> O.showDefault
   )
 
 dumpCommandParser :: O.Parser Command
-dumpCommandParser = DumpCommand <$> O.option
+dumpCommandParser = DumpCommand <$> stashFilePathArgument <*> O.option
   dumpFormatReader
   (  O.long "format"
   <> O.short 'f'
   <> O.metavar "markdown | org"
   <> O.help "Dump format"
   <> O.value DumpFormatOrg
+  <> O.completeWith ["markdown", "org"]
   <> O.showDefault
   )
 
-backupCommandParser :: O.Parser Command
-backupCommandParser = pure BackupCommand
+stashFilePathComplete :: String -> IO [String]
+stashFilePathComplete prefix = do
+  let
+    directoryPath = takeDirectory prefix
+    namePrefix    = takeFileName prefix
+    simplifyPath ('.' : '/' : xs) | not ("./" `isPrefixOf` prefix) = xs
+    simplifyPath xs = xs
 
-initCommandParser :: O.Parser Command
-initCommandParser = pure InitCommand
+  normalizedDirectoryPath <- IOUtils.normalizePath directoryPath
+  directoryExists <- Directory.doesDirectoryExist normalizedDirectoryPath
+  paths <- if directoryExists then Directory.listDirectory normalizedDirectoryPath else return []
+
+  let
+    filteredPaths =
+      [ simplifyPath (combine directoryPath p)
+      | p <- paths
+      , ".stash" `isSuffixOf` p
+      , namePrefix `isPrefixOf` p
+      ]
+  if null filteredPaths && not (hasTrailingPathSeparator prefix) && directoryExists
+    then stashFilePathComplete (addTrailingPathSeparator prefix)
+    else return filteredPaths
+
+
+stashFilePathArgument :: IsString s => O.Parser s
+stashFilePathArgument = O.strArgument
+  (  O.metavar "FILE"
+  <> O.action "directory"
+  <> O.completer (O.mkCompleter stashFilePathComplete)
+  <> O.help "Path to stash file"
+  )
+
+backupCommandParser :: O.Parser Command
+backupCommandParser = BackupCommand <$> stashFilePathArgument
+
+createCommandParser :: O.Parser Command
+createCommandParser = CreateCommand <$> stashFilePathArgument
 
 type CommandAlias = String
 type CommandDescription = String
@@ -84,5 +129,5 @@ commands = buildParser
   [ (["backup"], backupCommandParser, "Backup stash")
   , (["browse"], browseCommandParser, "Browse stash")
   , (["dump"]  , dumpCommandParser  , "Dump stash")
-  , (["init"]  , initCommandParser  , "Initialize stash in current directory")
+  , (["create"], createCommandParser, "Creates stash database")
   ]

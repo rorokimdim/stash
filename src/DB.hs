@@ -4,17 +4,16 @@ module DB
   , checkEncryptionKey
   , decryptNode
   , deleteNodes
-  , doesDBExist
   , getAllNodeVersions
   , getAllNodes
   , getAllPlainNodeVersions
   , getAllPlainNodes
   , getConfig
-  , getDBPath
   , getIds
   , getIdsInPath
   , getKeys
   , getNodes
+  , getDBPath
   , getPath
   , getPlainKeys
   , getPlainNodes
@@ -23,8 +22,11 @@ module DB
   , retrieve
   , save
   , setConfig
+  , setDBPath
   , updateNode
   , updateNodeValue
+  , validateDBPath
+  , DBPathValidationResult(..)
   )
 where
 

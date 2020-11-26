@@ -14,11 +14,11 @@
 
   The encryption key is read from STASH_ENCRYPTION_KEY environment variable.
 
-  Stash directory is `.stash` in current directory. If it does not exis, it will be created."
+  Stash file is `demo.stash` in current directory. If it does not exist, it will be created."
   []
   (let [ekey (System/getenv "STASH_ENCRYPTION_KEY")]
     (stash/init {"encryption-key" ekey
-                 "stash-directory" ".stash"
+                 "stash-path" "demo.stash"
                  "create-stash-if-missing" true})))
 
 (defn stash-nodes

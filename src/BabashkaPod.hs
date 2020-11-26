@@ -1,9 +1,9 @@
 module BabashkaPod where
 
 import Control.Exception (SomeException, evaluate, try)
-import Control.Monad (unless, when)
+import Control.Monad (unless)
 import Data.Aeson ((.:), (.:?), FromJSON, decode, encode, parseJSON, withObject)
-import Data.Maybe (fromMaybe, isNothing)
+import Data.Maybe (isNothing)
 import System.IO (hFlush, isEOF, stdout)
 
 import qualified Data.BEncode as BE
@@ -19,25 +19,25 @@ import Types
 
 data PodState = PodState {
   _ekey :: EncryptionKey,
-  _stashDirectory :: String,
+  _stashPath :: FilePath,
   _authenticated :: Bool,
   _shutdown :: Bool
 }
 
 data InitializationArg = InitializationArg {
   __ekey :: EncryptionKey,
-  __stashDirectory :: Maybe String,
+  __stashPath :: FilePath,
   __createStashIfMissing :: Bool
 }
 
 instance FromJSON InitializationArg where
   parseJSON = withObject "InitializationArg" $ \obj -> do
     ekey                 <- obj .: "encryption-key"
-    stashDirectory       <- obj .:? "stash-directory"
+    stashPath            <- obj .: "stash-path"
     createStashIfMissing <- obj .:? "create-stash-if-missing"
     return InitializationArg
       { __ekey                 = ekey
-      , __stashDirectory       = stashDirectory
+      , __stashPath            = stashPath
       , __createStashIfMissing = Just True == createStashIfMissing
       }
 
@@ -64,37 +64,45 @@ handleInitRequest s rid args = do
         let
           obj                  = head xs
           ekey                 = __ekey obj
-          stashDirectory       = fromMaybe (_stashDirectory s) $ __stashDirectory obj
+          stashPath            = __stashPath obj
           createStashIfMissing = __createStashIfMissing obj
 
-        IOUtils.setStashDirectory stashDirectory
-        dbExists <- DB.doesDBExist
-        when (not dbExists && createStashIfMissing) $ do
-          IOUtils.createStashDirectoryIfMissing
-          DB.bootstrap ekey
+        DB.setDBPath stashPath
+        validationResult <- DB.validateDBPath stashPath
 
-        dbExists <- DB.doesDBExist
-        if dbExists
-          then do
+        case validationResult of
+          DB.NonExistentDBFile -> do
+            if createStashIfMissing
+              then do
+                IOUtils.createMissingDirectories stashPath
+                DB.bootstrap ekey
+                continueState s { _ekey = ekey, _stashPath = stashPath, _authenticated = True }
+                  $ BE.BDict
+                  $ Map.fromList
+                      [ ("id"    , BE.BString rid)
+                      , ("value" , BE.BString "true")
+                      , ("status", BE.BList [BE.BString "done"])
+                      ]
+              else continueState s $ constructBencodeError
+                rid
+                ("stash file "
+                <> C.pack stashPath
+                <> " does not exist. Pass in create-stash-if-missing=true to create it. Or use `stash create`."
+                )
+                (BE.BString "false")
+          DB.InvalidDBFile -> continueState s $ constructBencodeError
+            rid
+            ("Invalid stash file " <> C.pack stashPath)
+            (BE.BString "false")
+          DB.ValidDBFile -> do
             isValid <- DB.checkEncryptionKey ekey
-            continueState s
-                { _ekey           = ekey
-                , _stashDirectory = stashDirectory
-                , _authenticated  = isValid
-                }
+            continueState s { _ekey = ekey, _stashPath = stashPath, _authenticated = isValid }
               $ BE.BDict
               $ Map.fromList
                   [ ("id"    , BE.BString rid)
                   , ("value", BE.BString (if isValid then "true" else "false"))
                   , ("status", BE.BList [BE.BString "done"])
                   ]
-          else continueState s $ constructBencodeError
-            rid
-            (  "Invalid stash directory "
-            <> C.pack stashDirectory
-            <> ". Pass in create-stash-if-missing=true to create it. Or use `stash init`."
-            )
-            (BE.BString "false")
 
 handleNodesRequest :: PodState -> PodRequestId -> Args -> IO (PodState, BE.BEncode)
 handleNodesRequest s rid args = do
@@ -346,13 +354,7 @@ constructBencodeError requestId exceptionMessage exceptionData = BE.BDict $ Map.
 
 initialState :: IO PodState
 initialState = do
-  stashDirectory <- IOUtils.getStashDirectory
-  return PodState
-    { _ekey           = T.empty
-    , _stashDirectory = stashDirectory
-    , _authenticated  = False
-    , _shutdown       = False
-    }
+  return PodState { _ekey = T.empty, _stashPath = "", _authenticated = False, _shutdown = False }
 
 interactWithBencode :: IO ()
 interactWithBencode = do
