@@ -2,11 +2,11 @@ module Main where
 
 import Control.Monad (join, void, unless, when)
 import Control.Monad.Trans (liftIO)
-import Data.List (sortBy, findIndex, isSuffixOf)
+import Data.List (sortBy, findIndex)
 import Data.Maybe (fromMaybe)
 import System.Directory (copyFileWithMetadata, doesDirectoryExist)
 import System.Exit (die)
-import System.FilePath.Posix (combine, takeDirectory, takeFileName)
+import System.FilePath.Posix (combine, takeDirectory, takeBaseName)
 
 import qualified Brick.AttrMap as BA
 import qualified Brick.Main as BM
@@ -759,7 +759,7 @@ backup = do
   let
     destinationDirectory = takeDirectory source
     destinationFileName =
-      "backup-" <> takeFileName source <> "-" <> filter (/= ' ') (show userTime)
+      "backup-" <> takeBaseName source <> "-" <> filter (/= ' ') (show userTime) <> ".stash"
     destination = combine destinationDirectory destinationFileName
 
   copyFileWithMetadata source destination
