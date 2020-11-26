@@ -156,5 +156,8 @@ stash --fish-completion-script `which stash`
 ## Credits
 
 1. [Haskell](https://www.haskell.org/)
-2. All of these [libraries](https://github.com/rorokimdim/stash/blob/master/package.yaml#L21) and all the things they depend on
-3. [sqlite](https://sqlite.org/)
+2. [cryptonite](https://github.com/haskell-crypto/cryptonite) and [crypto-simple](https://github.com/Risto-Stevcev/haskell-crypto-simple)
+3. [brick](https://hackage.haskell.org/package/brick) and [optparse-applicative](https://github.com/pcapriotti/optparse-applicative)
+4. All of these [libraries](https://github.com/rorokimdim/stash/blob/master/package.yaml#L20) and all the things they depend on
+5. Every stash file is a [sqlite](https://sqlite.org/) file
+6. Scriping support via [clojure](https://clojure.org/) and [babashka](https://github.com/borkdude/babashka)
