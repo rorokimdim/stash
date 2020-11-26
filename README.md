@@ -12,6 +12,9 @@ Data is hashed for indexing purposes using a good random salt + [SHA512](https:/
 **Table of Contents**
 
 - [stash](#stash)
+    - [Installation](#installation)
+        - [Linux and Mac](#linux-and-mac)
+        - [Others](#others)
     - [Getting Started](#getting-started)
     - [Browsing](#browsing)
         - [Terminal user interface (default)](#terminal-user-interface-default)
@@ -30,6 +33,23 @@ Data is hashed for indexing purposes using a good random salt + [SHA512](https:/
     - [Credits](#credits)
 
 <!-- markdown-toc end -->
+
+## Installation
+
+### Linux and Mac
+
+Get the binary from [releases](https://github.com/rorokimdim/stash/releases), rename it to `stash` and put it
+somewhere in your path.
+
+### Others
+
+No pre-built binaries available at this time. We will need to build from source using `stack install` or `cabal install`.
+
+Install [stack](https://docs.haskellstack.org/en/stable/README/), clone this repository and run the following in repository directory.
+
+```bash
+./build.sh
+```
 
 ## Getting Started
 
