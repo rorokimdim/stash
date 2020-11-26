@@ -1,6 +1,9 @@
 ;; If `stash` command is not in your path, use the full path instead.
-;; For example: (babashka.pods/load-pod ["/a/b/c/bin/stash"])
-(babashka.pods/load-pod ["stash"])
+(def stash-command "stash")
+
+(def stash-file-path "demo.stash")
+
+(babashka.pods/load-pod [stash-command])
 
 (ns user
   (:require
@@ -9,16 +12,17 @@
    [pod.rorokimdim.stash :as stash])
   (:import [java.lang ProcessBuilder$Redirect]))
 
+
 (defn stash-init
   "Initializes stash.
 
   The encryption key is read from STASH_ENCRYPTION_KEY environment variable.
 
-  Stash file is `demo.stash` in current directory. If it does not exist, it will be created."
+  If `stash-file-path` does not exist, it will be created."
   []
   (let [ekey (System/getenv "STASH_ENCRYPTION_KEY")]
     (stash/init {"encryption-key" ekey
-                 "stash-path" "demo.stash"
+                 "stash-path" stash-file-path
                  "create-stash-if-missing" true})))
 
 (defn stash-nodes
@@ -75,6 +79,15 @@
   "Deletes nodes by ids."
   [& nids]
   (apply stash/delete nids))
+
+(defn stash-browse
+  "Launches stash terminal-ui."
+  []
+  (-> (ProcessBuilder. [stash-command "browse" stash-file-path])
+      (.inheritIO)
+      (.start)
+      (.waitFor))
+  (stash-trees))
 
 (def editor-command (or (System/getenv "EDITOR") "vim"))
 (defn edit []

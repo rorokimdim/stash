@@ -125,7 +125,7 @@ Creates a timestamped copy of stash file in the same directory as the original f
 
 `stash` exposes a [bencode](https://en.wikipedia.org/wiki/Bencode) interface using [Babashka Pod Protocol](https://github.com/babashka/pods#the-protocol).
 
-If you are familiar with babashka, see [bb-example](https://github.com/rorokimdim/stash/tree/master/bb-example).
+If you are familiar with [clojure](https://clojure.org/) or [babashka](https://github.com/borkdude/babashka), see [bb-example](https://github.com/rorokimdim/stash/tree/master/bb-example).
 
 ## Shell Autocompletion
 
