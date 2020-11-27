@@ -26,6 +26,7 @@ Data is hashed for indexing purposes using a good random salt + [SHA512](https:/
         - [As Org text](#as-org-text-1)
     - [Backing up data](#backing-up-data)
     - [Babashka pod support](#babashka-pod-support)
+    - [Customization](#customization)
     - [Shell Autocompletion](#shell-autocompletion)
         - [bash](#bash)
         - [zsh](#zsh)
@@ -146,6 +147,25 @@ Creates a timestamped copy of stash file in the same directory as the original f
 `stash` exposes a [bencode](https://en.wikipedia.org/wiki/Bencode) interface using [Babashka Pod Protocol](https://github.com/babashka/pods#the-protocol).
 
 If you are familiar with [clojure](https://clojure.org/) or [babashka](https://github.com/borkdude/babashka), see [bb-example](https://github.com/rorokimdim/stash/tree/master/bb-example).
+
+## Customization
+
+A few things in stash can be customized via environment variables.
+
+| Name                                | Description                                                                       | Possible Values          | Default          |
+|-------------------------------------|-----------------------------------------------------------------------------------|--------------------------|------------------|
+| `STASH_ENCRYPTION_KEY`              | encryption key                                                                    | -                        | prompt as needed |
+| `STASH_WIPE_CLIPBOARD_AFTER_BROWSE` | wipe clipboard after browse                                                       | true, false              | false            |
+| `STASH_LOG_LEVEL`                   | logging level                                                                     | DEBUG, INFO, WARN, ERROR | INFO             |
+| `STASH_TUI_COLOR_SELECTED`          | color of selected item                                                            | see below                | cyan             |
+| `STASH_TUI_COLOR_CURRENT_PATH`      | color of current path                                                             | see below                | white            |
+| `STASH_TUI_COLOR_SORT_PATTERN`      | color of sort/search text                                                         | see below                | white            |
+| `BABASHKA_POD`                      | start as [babashka-pod](https://github.com/rorokimdim/stash#babashka-pod-support) | true, false              | false            |
+| `EDITOR`                            | command for editing text                                                          | -                        | vim              |
+
+Color values can be one of `black`, `red`, `green`, `yellow`, `blue`, `magenta`, `cyan`,
+`white`, `brightBlack`, `brightRed`, `brightGreen`, `brightYellow`,
+`brightBlue`, `brightMagenta`, `brightCyan` and `brightWhite`.
 
 ## Shell Autocompletion
 

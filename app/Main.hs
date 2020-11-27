@@ -70,16 +70,44 @@ data AppState = AppState {
   _genericEditPrompt :: T.Text
 } deriving (Show)
 
-app :: BM.App AppState e ResourceName
-app = BM.App
-  { appDraw         = draw
-  , appChooseCursor = BM.showFirstCursor
-  , appHandleEvent  = handleEvent
-  , appStartEvent   = startEvent
-  , appAttrMap      = const $ BA.attrMap
-    VA.defAttr
-    [("selected", BU.bg V.cyan), ("currentPath", BU.fg V.white), ("sortPatternText", BU.fg V.white)]
-  }
+buildBrickApp :: IO (BM.App AppState e ResourceName)
+buildBrickApp = do
+  let
+    toColor "black"         = VA.black
+    toColor "red"           = VA.red
+    toColor "green"         = VA.green
+    toColor "yellow"        = VA.yellow
+    toColor "blue"          = VA.blue
+    toColor "magenta"       = VA.magenta
+    toColor "cyan"          = VA.cyan
+    toColor "white"         = VA.white
+    toColor "brightBlack"   = VA.brightBlack
+    toColor "brightRed"     = VA.brightRed
+    toColor "brightGreen"   = VA.brightGreen
+    toColor "brightYellow"  = VA.brightYellow
+    toColor "brightBlue"    = VA.brightBlue
+    toColor "brightMagenta" = VA.brightMagenta
+    toColor "brightCyan"    = VA.brightCyan
+    toColor "brightWhite"   = VA.brightWhite
+    toColor _               = VA.cyan
+
+  selectedColor <- toColor <$> IOUtils.getEnvWithDefault "STASH_TUI_COLOR_SELECTED" "cyan"
+  currentPathColor <- toColor <$> IOUtils.getEnvWithDefault "STASH_TUI_COLOR_CURRENT_PATH" "white"
+  sortPatternTextColor <- toColor
+    <$> IOUtils.getEnvWithDefault "STASH_TUI_COLOR_SORT_PATTERN" "white"
+
+  return BM.App
+    { appDraw         = draw
+    , appChooseCursor = BM.showFirstCursor
+    , appHandleEvent  = handleEvent
+    , appStartEvent   = startEvent
+    , appAttrMap      = const $ BA.attrMap
+      VA.defAttr
+      [ ("selected"       , BU.bg selectedColor)
+      , ("currentPath"    , BU.fg currentPathColor)
+      , ("sortPatternText", BU.fg sortPatternTextColor)
+      ]
+    }
 
 -- |Gets encryption key from environment or user and memoizes it for subsequent calls.
 getEncryptionKey :: IO EncryptionKey
@@ -416,6 +444,13 @@ prepareForDeleteKey s = s
   prompt = "Are you sure you want to delete selected key? Type 'yes' to delete: "
   editor = BWE.editor "genericEditor" (Just 1) ""
 
+haltBrick :: AppState -> BT.EventM n (BT.Next AppState)
+haltBrick s = do
+  liftIO $ do
+    wipeClipboard <- IOUtils.getEnvWithDefault "STASH_WIPE_CLIPBOARD_AFTER_BROWSE" "false"
+    when (wipeClipboard == "true") $ Hclip.setClipboard ""
+  BM.halt s
+
 handleEvent :: AppState -> BT.BrickEvent ResourceName e -> BT.EventM ResourceName (BT.Next AppState)
 handleEvent s@AppState { _uiMode = BROWSE_EMPTY } event@(BT.VtyEvent e) = case e of
   V.EvKey (V.KChar '+') [] -> BM.continue $ prepareForAddKey s
@@ -425,7 +460,7 @@ handleEvent s@AppState { _uiMode = BROWSE_HELP } event@(BT.VtyEvent e) = case e 
   V.EvKey V.KEsc [] -> BM.continue $ switchToBrowseMode s
   _                 -> handleSharedEvent s event
 handleEvent s@AppState { _uiMode = BROWSE } event@(BT.VtyEvent e) = case e of
-  V.EvKey V.KEsc        []        -> BM.halt s
+  V.EvKey V.KEsc        []        -> haltBrick s
   V.EvKey V.KEnter      []        -> BM.suspendAndResume $ editSelectedValue s
   V.EvKey V.KLeft       []        -> move s LEFT
   V.EvKey V.KRight      []        -> move s RIGHT
@@ -634,6 +669,7 @@ setSelectedIndex s si = s { _selectPath = init selectPath ++ [(pid, si)] }
 browseTUI :: IO ()
 browseTUI = do
   initialState <- buildInitialState
+  app          <- buildBrickApp
   void $ BM.defaultMain app initialState
 
 printDiff :: T.Text -> T.Text -> IO ()
