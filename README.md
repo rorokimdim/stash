@@ -48,7 +48,7 @@ No pre-built binaries available at this time. We will need to build from source 
 Install [stack](https://docs.haskellstack.org/en/stable/README/), clone this repository and run the following in repository directory.
 
 ```bash
-./build.sh
+stack install
 ```
 
 ## Getting Started
