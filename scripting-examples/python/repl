@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+
+# Prompt for encryption key
+echo -n "Enter encryption key: "
+read -s ekey
+
+STASH_ENCRYPTION_KEY=$ekey ipython -i stash.py
