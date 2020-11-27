@@ -4,4 +4,4 @@
 echo -n "Enter encryption key: "
 read -s ekey
 
-STASH_ENCRYPTION_KEY=$ekey ipython -i stash.py
+STASH_ENCRYPTION_KEY=$ekey STASH_COMMAND_FULL_PATH=`which stash` ipython -i stash.py

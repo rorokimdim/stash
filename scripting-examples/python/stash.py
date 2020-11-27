@@ -5,7 +5,7 @@ import subprocess
 
 import bcoding
 
-POD_COMMAND = '/Users/amitshrestha/bin/stash'
+POD_COMMAND = os.environ['STASH_COMMAND_FULL_PATH']
 POD_PROCESS = None
 
 STASH_FILE_PATH = "demo.stash"
