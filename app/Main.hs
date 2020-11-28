@@ -870,5 +870,7 @@ main = do
   parser = O.subparser $ mconcat C.commands
   opts   = O.info
     (parser O.<**> O.helper)
-    (O.fullDesc <> O.progDesc "stash [browse | dump]" <> O.header ("Stash " ++ appVersion))
+    (O.fullDesc <> O.progDesc "stash [create | browse | dump | backup]" <> O.header
+      ("Stash " <> appVersion <> " https://github.com/rorokimdim/stash")
+    )
   preferences = O.prefs (O.showHelpOnError <> O.showHelpOnEmpty)

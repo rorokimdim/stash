@@ -128,8 +128,8 @@ buildParser xs = concat $ do
 
 commands :: [O.Mod O.CommandFields Command]
 commands = buildParser
-  [ (["backup"], backupCommandParser, "Backup stash")
+  [ (["create"], createCommandParser, "Create stash")
   , (["browse"], browseCommandParser, "Browse stash")
   , (["dump"]  , dumpCommandParser  , "Dump stash")
-  , (["create"], createCommandParser, "Creates stash database")
+  , (["backup"], backupCommandParser, "Backup stash")
   ]
