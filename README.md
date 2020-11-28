@@ -39,8 +39,25 @@ Data is hashed for indexing purposes using a good random salt + [SHA512](https:/
 
 ### Linux and Mac
 
-Get the binary from [releases](https://github.com/rorokimdim/stash/releases), rename it to `stash` and put it
-somewhere in your path.
+Install:
+
+```bash
+brew install rorokimdim/brew/stash
+```
+
+Upgrade:
+
+```bash
+brew upgrade stash
+```
+
+Uninstall:
+
+```bash
+brew uninstall stash
+```
+
+Binaries are available at [releases](https://github.com/rorokimdim/stash/releases).
 
 ### Others
 
