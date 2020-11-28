@@ -1,13 +1,14 @@
 ;; If `stash` command is not in your path, use the full path instead.
-(def stash-command "stash")
+(def ^{:doc "path to stash command"} stash-command "stash")
 
-(def stash-file-path "demo.stash")
+(def ^{:doc "path to stash file"} stash-file-path "demo.stash")
 
 (babashka.pods/load-pod [stash-command])
 
 (ns user
   (:require
    [clojure.java.io :as io]
+   [clojure.string :as s]
    [table.core :as t]
    [pod.rorokimdim.stash :as stash])
   (:import [java.lang ProcessBuilder$Redirect]))
@@ -90,7 +91,9 @@
   (stash-trees))
 
 (def editor-command (or (System/getenv "EDITOR") "vim"))
-(defn edit []
+(defn edit
+  "Opens user.clj in editor and loads the content after editor exits."
+  []
   (let [f (io/file "user.clj")]
     (-> (ProcessBuilder. [editor-command (.getPath f)])
         (.inheritIO)
@@ -98,17 +101,66 @@
         (.waitFor))
     (load-string (slurp f))))
 
-(defn startup []
+(defn docstrings
+  "Gets sequence of maps with symbol-name and symbol-docstring."
+  ([namespace] (docstrings namespace (constantly true)))
+  ([namespace pred]
+   (let [m  (into (sorted-map) (ns-publics namespace))]
+     (for [[k v] m
+           :when (pred k v)]
+       {:name (str k) :description (:doc (meta v))}))))
+
+(defn pretty-print-docstrings
+  "Pretty-prints maps from `docstrings` function."
+  [ms]
+  (doseq [{name :name description :description} ms]
+    (println (str "▸ " name))
+    (when (not (nil? description))
+      (println (->> description
+                    s/split-lines
+                    (map s/trim)
+                    (s/join "\n")))
+      (println))))
+
+(defn tabulate-docstrings
+  "Prints maps from `docstrings` function as a table.
+
+  Only the first line of each description will be shown."
+  [ms]
+  (->> ms
+       (map (fn [m] (update-in m [:description] #(and %1 (first (s/split-lines %1))))))
+       (#(t/table % :fields [:name :description]))))
+
+(defn stash-help
+  "Prints docstrings for stash symbols."
+  []
+  (-> (docstrings 'user (fn [k _] (s/starts-with? k "stash-")))
+      pretty-print-docstrings))
+
+(defn startup
+  "Sets up the repl.
+
+  1. calls stash-init
+  2. prints some help
+  3. loads user.clj if it exists"
+  []
   (if (not (stash-init))
     (println "☠️  Invalid encryption key. Failed to initialize stash.")
-    (println "✔︎ stash initialized."))
+    (do
+      (println "✔︎ stash initialized.")
+      (println "Try these functions:")
+      (-> (docstrings 'user (fn [k v] (and (s/starts-with? k "stash-")
+                                           (fn? @v))))
+          tabulate-docstrings)))
 
   (let [f (io/file "user.clj")]
     (when (.exists f)
       (println "✔︎ Found user.clj. Loading...")
       (load-string (slurp f)))))
 
-(defn shutdown []
+(defn shutdown
+  "Shutdown hook."
+  []
   (println "Goodbye!"))
 
 (-> (Runtime/getRuntime)
