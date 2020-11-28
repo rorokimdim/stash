@@ -38,7 +38,8 @@ def startup():
         print('Try these functions:')
         print('\n'.join(f'▸ {name}' for name, _ in get_stash_functions()))
     else:
-        print('☠️  Invalid encryption key. Failed to initialize stash.')
+        print(f'☠️  Invalid encryption key for "{STASH_FILE_PATH}". Failed to initialize stash.')
+        print(f'\nPlease delete "{STASH_FILE_PATH}" to create one with a different key.')
 
     atexit.register(shutdown)
 

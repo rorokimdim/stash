@@ -145,7 +145,10 @@
   3. loads user.clj if it exists"
   []
   (if (not (stash-init))
-    (println "☠️  Invalid encryption key. Failed to initialize stash.")
+    (do
+      (println (str "☠️  Invalid encryption key for \"" stash-file-path "\". Failed to initialize stash."))
+      (println (str "\nPlease delete \"" stash-file-path "\" to create one with a different key.\n"))
+      (System/exit 1))
     (do
       (println "✔︎ stash initialized.")
       (println "Try these functions:")
