@@ -2,6 +2,12 @@
 
 # Prompt for encryption key
 echo -n "Enter encryption key: "
-read -s ekey
+read -rs ekey
 
-STASH_ENCRYPTION_KEY=$ekey STASH_COMMAND_FULL_PATH=`which stash` ipython -i stash.py
+PY_COMMAND="python3"
+if command -v ipython3 &> /dev/null
+then
+    PY_COMMAND="ipython3"
+fi
+
+STASH_ENCRYPTION_KEY=$ekey STASH_COMMAND_FULL_PATH=$(which stash) $PY_COMMAND -i stash.py

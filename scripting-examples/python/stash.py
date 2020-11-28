@@ -1,7 +1,10 @@
-import uuid
+import atexit
+import inspect
 import json
 import os
 import subprocess
+import sys
+import uuid
 
 import bcoding
 
@@ -28,18 +31,29 @@ def get_pod():
     return POD_PROCESS
 
 
-def stash_startup():
+def startup():
     """Prepares to talk to stash."""
     if stash_init():
         print('✔︎ stash initialized.')
+        print('Try these functions:')
+        print('\n'.join(f'▸ {name}' for name, _ in get_stash_functions()))
     else:
         print('☠️  Invalid encryption key. Failed to initialize stash.')
 
+    atexit.register(shutdown)
 
-def stash_shutdown():
-    """Shuts down stash process."""
+
+def shutdown():
+    """Shuts down pod process."""
+    print('Shutting down pod...')
     pod = get_pod()
-    write(pod, dict(op='shutdown'))
+
+    try:
+        write(pod, dict(op='shutdown'))
+    except ValueError as e:
+        if 'closed file' in str(e):
+            return
+        raise
 
     pod.stdin.close()
     pod.terminate()
@@ -63,6 +77,21 @@ def get_description():
 
     write(pod, dict(op='describe'))
     return read(pod)
+
+
+def get_stash_functions():
+    """Gets a list of tuples of (stash-function-name, docstring)."""
+    return sorted((name, x.__doc__) for name, x in inspect.getmembers(sys.modules[__name__])
+                  if name.startswith('stash_')
+                  if callable(x))
+
+
+def stash_help():
+    """Print some help on stash functions."""
+    for name, doc in get_stash_functions():
+        print(f'▸ {name}')
+        print('\n'.join(line.strip() for line in doc.splitlines()))
+        print()
 
 
 def stash_init():
@@ -160,4 +189,4 @@ def stash_browse():
     subprocess.Popen([POD_COMMAND, 'browse', STASH_FILE_PATH]).wait()
 
 
-stash_startup()
+startup()
