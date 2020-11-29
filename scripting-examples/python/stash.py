@@ -60,6 +60,9 @@ def shutdown():
     pod.terminate()
     pod.wait(timeout=0.2)
 
+    global POD_PROCESS
+    POD_PROCESS = None
+
 
 def write(pod, data):
     """Writes data to pod's stdin."""
