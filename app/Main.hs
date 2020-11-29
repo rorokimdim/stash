@@ -6,7 +6,9 @@ import Data.List (sortBy, findIndex)
 import Data.Maybe (fromMaybe)
 import System.Directory (copyFileWithMetadata, doesDirectoryExist)
 import System.Exit (die)
-import System.FilePath.Posix (combine, takeDirectory, takeBaseName)
+import System.FilePath.Posix (combine, takeBaseName, takeDirectory, takeFileName)
+import System.IO
+  (Handle, IOMode(ReadMode), hIsTerminalDevice, hClose, hFlush, openFile, stdin, stdout)
 
 import qualified Brick.AttrMap as BA
 import qualified Brick.Main as BM
@@ -47,7 +49,7 @@ import qualified BabashkaPod as BPod
 import Types
 
 appVersion :: String
-appVersion = "0.1.0"
+appVersion = "0.2.0"
 
 type SelectedIndex = Int
 type ResourceName = String
@@ -111,17 +113,22 @@ buildBrickApp = do
 
 -- |Gets encryption key from environment or user and memoizes it for subsequent calls.
 getEncryptionKey :: IO EncryptionKey
-getEncryptionKey = join $ Memoize.once getEncryptionKey_
+getEncryptionKey = join $ Memoize.once $ getEncryptionKey_ stdin
 
-getEncryptionKey_ :: IO EncryptionKey
-getEncryptionKey_ = do
-  ekey <- IOUtils.getEnvWithPromptFallback
+getEncryptionKey_ :: Handle -> IO EncryptionKey
+getEncryptionKey_ handle = do
+  dbPath <- DB.getDBPath
+  ekey   <- IOUtils.getEnvWithPromptFallback_
+    handle
     "STASH_ENCRYPTION_KEY"
-    "Enter encryption key: "
+    ("Enter encryption key for " <> takeFileName dbPath <> ": ")
     True
     False
+
   valid <- DB.checkEncryptionKey ekey
-  if valid then return ekey else die "☠️  Encryption key is invalid for current stash database."
+  if valid
+    then return ekey
+    else die $ "\n☠️  Encryption key is invalid for stash file at " <> dbPath <> "."
 
 getEncryptionKeyWithConfirmation :: IO EncryptionKey
 getEncryptionKeyWithConfirmation = do
@@ -711,6 +718,49 @@ deleteInteractively (n : ns) True = do
     IOUtils.URNoToAll  -> putStrLn "Ok, skipping any more deletes."
     IOUtils.URYesToAll -> deleteInteractively (n : ns) False
 
+ingestTextInteractively :: EncryptionKey -> TextFormat -> T.Text -> IO [NodeId]
+ingestTextInteractively ekey format text = ingestTextInteractively_ stdin ekey format text
+
+ingestTextInteractively_ :: Handle -> EncryptionKey -> TextFormat -> T.Text -> IO [NodeId]
+ingestTextInteractively_ handle ekey format text = do
+  lastUserResponseRef <- IORef.newIORef IOUtils.URNo
+
+  let
+    walker :: [NodeId] -> [PlainKey] -> PlainValue -> IO [NodeId]
+    walker nids ks body = do
+      oldValue <- DB.retrieve ekey ks
+      case oldValue of
+        Nothing      -> DB.save ekey ks body
+        Just ""      -> DB.save ekey ks body
+        Just oldBody -> do
+          if oldBody /= body
+            then do
+              lastUserResponse <- IORef.readIORef lastUserResponseRef
+              case lastUserResponse of
+                IOUtils.URYesToAll -> do
+                  ids <- DB.save ekey ks body
+                  return $ ids ++ nids
+                IOUtils.URNoToAll -> return nids
+                _                 -> do
+                  TIO.putStrLn $ T.concat ["▸ Value of [", T.intercalate " > " ks, "] differ:"]
+                  printDiff oldBody body
+
+                  userResponse <- IOUtils.readUserResponseYesNo_ handle "Accept this change?"
+                  IORef.writeIORef lastUserResponseRef userResponse
+
+                  let
+                    handleUserResponse r | r `elem` [IOUtils.URYes, IOUtils.URYesToAll] = do
+                      ids <- DB.save ekey ks body
+                      return $ ids ++ nids
+                    handleUserResponse r | r `elem` [IOUtils.URNo, IOUtils.URNoToAll] = do
+                      ids <- DB.getIdsInPath ks
+                      return $ ids ++ nids
+
+                  handleUserResponse userResponse
+            else return nids
+
+  TextTransform.walkText [] format text walker
+
 browseText :: TextFormat -> IO ()
 browseText format = do
   ekey       <- getEncryptionKey
@@ -785,6 +835,7 @@ dump format = do
   plainNodes <- DB.getAllPlainNodes ekey
 
   text       <- IOUtils.logTime "toText" $ pure $ TextTransform.toText format plainNodes
+  TIO.putStrLn ""
   TIO.putStrLn text
 
 backup :: IO ()
@@ -800,6 +851,28 @@ backup = do
 
   copyFileWithMetadata source destination
   putStrLn $ "Backed up " <> source <> " to " <> destination
+
+importText :: TextFormat -> IO ()
+importText format = do
+  isTerminal   <- hIsTerminalDevice stdin
+  tty          <- openFile "/dev/tty" ReadMode
+  (ekey, text) <- if isTerminal
+    then do
+      ekey <- getEncryptionKey
+      putStrLn $ "→ Please enter/paste text in '" <> show format <> "' and press ctrl-d when done:"
+      text <- TIO.getContents
+      return (ekey, text)
+    else do
+      putStrLn
+        "Waiting for piped input... if this is stuck it probably means the piped command is waiting for you to enter something..."
+      text <- TIO.getContents
+      ekey <- getEncryptionKey_ tty
+      putStrLn ""
+      hFlush stdout
+      return (ekey, text)
+
+  ingestTextInteractively_ tty ekey format text
+  hClose tty
 
 initialize :: FilePath -> Bool -> IO ()
 initialize path createIfMissing = do
@@ -847,6 +920,11 @@ processCommand (C.DumpCommand dbPath format) = do
     C.DumpFormatJSON     -> dump JSONText
     C.DumpFormatMarkdown -> dump MarkdownText
     C.DumpFormatOrg      -> dump OrgText
+processCommand (C.ImportCommand dbPath format) = do
+  initialize dbPath False
+  case format of
+    C.ImportFormatMarkdown -> importText MarkdownText
+    C.ImportFormatOrg      -> importText OrgText
 
 setUpLogging :: IO ()
 setUpLogging = do
@@ -870,7 +948,7 @@ main = do
   parser = O.subparser $ mconcat C.commands
   opts   = O.info
     (parser O.<**> O.helper)
-    (O.fullDesc <> O.progDesc "stash [create | browse | dump | backup]" <> O.header
+    (O.fullDesc <> O.progDesc "stash [create | browse | dump | backup | import]" <> O.header
       ("Stash " <> appVersion <> " https://github.com/rorokimdim/stash")
     )
   preferences = O.prefs (O.showHelpOnError <> O.showHelpOnEmpty)

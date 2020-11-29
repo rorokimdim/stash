@@ -2,6 +2,7 @@ module CommandParsers
   ( BrowseFormat(..)
   , Command(..)
   , DumpFormat(..)
+  , ImportFormat(..)
   , commands
   )
 where
@@ -28,10 +29,16 @@ instance Show DumpFormat where
   show DumpFormatMarkdown = "markdown"
   show DumpFormatOrg      = "org"
 
+data ImportFormat = ImportFormatMarkdown | ImportFormatOrg
+instance Show ImportFormat where
+  show ImportFormatMarkdown = "markdown"
+  show ImportFormatOrg      = "org"
+
 data Command = DumpCommand FilePath DumpFormat
              | BrowseCommand FilePath BrowseFormat
              | BackupCommand FilePath
              | CreateCommand FilePath
+             | ImportCommand FilePath ImportFormat
 
 browseFormatReader :: O.ReadM BrowseFormat
 browseFormatReader = O.eitherReader f
@@ -50,6 +57,14 @@ dumpFormatReader = O.eitherReader f
   f "markdown" = Right DumpFormatMarkdown
   f "org"      = Right DumpFormatOrg
   f x          = Left $ "Invalid dump format " ++ x
+
+importFormatReader :: O.ReadM ImportFormat
+importFormatReader = O.eitherReader f
+ where
+  f "md"       = Right ImportFormatMarkdown
+  f "markdown" = Right ImportFormatMarkdown
+  f "org"      = Right ImportFormatOrg
+  f x          = Left $ "Invalid import format " ++ x
 
 browseCommandParser :: O.Parser Command
 browseCommandParser = BrowseCommand <$> stashFilePathArgument <*> O.option
@@ -72,6 +87,18 @@ dumpCommandParser = DumpCommand <$> stashFilePathArgument <*> O.option
   <> O.help "Dump format"
   <> O.value DumpFormatOrg
   <> O.completeWith ["json", "markdown", "org"]
+  <> O.showDefault
+  )
+
+importCommandParser :: O.Parser Command
+importCommandParser = ImportCommand <$> stashFilePathArgument <*> O.option
+  importFormatReader
+  (  O.long "format"
+  <> O.short 'f'
+  <> O.metavar "markdown | org"
+  <> O.help "Import format"
+  <> O.value ImportFormatOrg
+  <> O.completeWith ["markdown", "org"]
   <> O.showDefault
   )
 
@@ -132,4 +159,5 @@ commands = buildParser
   , (["browse"], browseCommandParser, "Browse stash")
   , (["dump"]  , dumpCommandParser  , "Dump stash")
   , (["backup"], backupCommandParser, "Backup stash")
+  , (["import"], importCommandParser, "Import text into stash from stdin")
   ]

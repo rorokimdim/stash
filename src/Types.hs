@@ -19,7 +19,11 @@ type PlainValue = T.Text
 
 newtype PlainTree = PlainTree (HM.HashMap PlainKey (PlainValue, [PlainTree])) deriving (Show)
 
-data TextFormat = JSONText | OrgText | MarkdownText deriving (Show)
+data TextFormat = JSONText | OrgText | MarkdownText
+instance Show TextFormat where
+  show JSONText     = "json"
+  show OrgText      = "org"
+  show MarkdownText = "markdown"
 
 data Node = Node {
   _id :: NodeId,
