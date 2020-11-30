@@ -859,6 +859,8 @@ importText format = do
   (ekey, text) <- if isTerminal
     then do
       ekey <- getEncryptionKey
+      putStrLn ""
+      hFlush stdout
       putStrLn $ "→ Please enter/paste text in '" <> show format <> "' and press ctrl-d when done:"
       text <- TIO.getContents
       return (ekey, text)
