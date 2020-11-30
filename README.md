@@ -18,13 +18,14 @@ Data is hashed for indexing purposes using a good random salt + [SHA512](https:/
     - [Getting Started](#getting-started)
     - [Browsing](#browsing)
         - [Terminal user interface (default)](#terminal-user-interface-default)
-        - [As Markdown text](#as-markdown-text)
         - [As Org text](#as-org-text)
+        - [As Markdown text](#as-markdown-text)
     - [Dumping contents to stdout](#dumping-contents-to-stdout)
-        - [As JSON text](#as-json-text)
+        - [As Org text (default)](#as-org-text-default)
         - [As Markdown text](#as-markdown-text-1)
-        - [As Org text](#as-org-text-1)
+        - [As JSON text](#as-json-text)
     - [Backing up data](#backing-up-data)
+    - [Importing text](#importing-text)
     - [Babashka pod support](#babashka-pod-support)
     - [Customization](#customization)
     - [Shell Autocompletion](#shell-autocompletion)
@@ -115,14 +116,6 @@ stash browse {path-to-stash-file}
 | Ctrl-u, Ctrl-d         | Scroll keys half page up / down                  |
 | Ctrl-b, Ctrl-f         | Scroll keys one page up / down                   |
 
-### As Markdown text
-
-```
-stash browse -f markdown {path-to-stash-file}
-```
-
-Opens as markdown text in default editor. Set EDITOR environment variable to your editor command. Defaults to vim.
-
 ### As Org text
 
 ```
@@ -131,12 +124,21 @@ stash browse -f org {path-to-stash-file}
 
 Opens as Org text in default editor. Set EDITOR environment variable to your editor command. Defaults to vim.
 
-## Dumping contents to stdout
-
-### As JSON text
+### As Markdown text
 
 ```
-stash dump -f json {path-to-stash-file}
+stash browse -f markdown {path-to-stash-file}
+```
+
+Opens as markdown text in default editor. Set EDITOR environment variable to your editor command. Defaults to vim.
+
+
+## Dumping contents to stdout
+
+### As Org text (default)
+
+```
+stash dump -f org {path-to-stash-file}
 ```
 
 ### As Markdown text
@@ -145,10 +147,10 @@ stash dump -f json {path-to-stash-file}
 stash dump -f markdown {path-to-stash-file}
 ```
 
-### As Org text
+### As JSON text
 
 ```
-stash dump -f org {path-to-stash-file}
+stash dump -f json {path-to-stash-file}
 ```
 
 ## Backing up data
@@ -158,6 +160,28 @@ stash backup {path-to-stash-file}
 ```
 
 Creates a timestamped copy of stash file in the same directory as the original file.
+
+## Importing text
+
+We can import `org` and `markdown` text into stash. This feature is only available in version 0.2.0+.
+
+```
+cat {path-to-text-file} | stash import {path-to-stash-file}
+```
+
+`stash import` will assume text is in `org` format by default, but `markdown` is supported too:
+
+```
+cat {path-to-text-file} | stash import -f markdown {path-to-stash-file}
+```
+
+We can import from another stash file similarly:
+
+```
+stash dump {path-to-source-stash-file} | stash import {path-to-destination-stash-file}
+```
+
+We will need to first enter encryption-key for the source stash-file followed by encryption-key for the destination stash file.
 
 ## Babashka pod support
 
