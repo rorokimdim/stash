@@ -311,15 +311,16 @@ handleRequest s (BE.BDict d) = do
     BE.BString rid  = Map.findWithDefault (BE.BString "") "id" d
     BE.BString args = Map.findWithDefault (BE.BString "") "args" d
   case op of
-    (BE.BString "describe") -> return (s, podDescription)
+    (BE.BString "describe") -> return (s, podDescription rid)
     (BE.BString "invoke"  ) -> handleInvokeRequest s (InvokeRequest invokeVar rid args)
       where (BE.BString invokeVar) = Map.findWithDefault (BE.BString "") "var" d
     (BE.BString "shutdown") -> handleShutdownRequest s rid
     _                       -> return (s, constructBencodeError rid "Invalid op" op)
 
-podDescription :: BE.BEncode
-podDescription = BE.BDict $ Map.fromList
+podDescription :: PodRequestId -> BE.BEncode
+podDescription rid = BE.BDict $ Map.fromList
   [ ("format", BE.BString "json")
+  , ("id"    , BE.BString rid)
   , ( "namespaces"
     , BE.BList
       [ BE.BDict $ Map.fromList
