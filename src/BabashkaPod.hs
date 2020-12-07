@@ -377,10 +377,11 @@ interactWithBencode_ s = do
     BE.BList [BE.BString "error", BE.BString _] -> return ()
     x -> do
       let shutdown = _shutdown newState
+      BSLazy.putStr $ BE.bPack x
+      hFlush stdout
+
       if shutdown
         then return ()
         else do
-          BSLazy.putStr $ BE.bPack x
-          hFlush stdout
           eof <- isEOF
           unless eof $ interactWithBencode_ newState
