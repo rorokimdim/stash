@@ -12,6 +12,7 @@ Data is hashed for indexing purposes using a good random salt + [SHA512](https:/
 **Table of Contents**
 
 - [stash](#stash)
+    - [Rationale](#rationale)
     - [Installation](#installation)
         - [Linux and Mac](#linux-and-mac)
         - [Others](#others)
@@ -35,6 +36,14 @@ Data is hashed for indexing purposes using a good random salt + [SHA512](https:/
     - [Credits](#credits)
 
 <!-- markdown-toc end -->
+
+## Rationale
+
+All of us need to store sensitive information. At the very least, we need to keep passwords and keys to numerous online services we use. Storing them
+in plain-text is risky. So is not keeping backups in multiple locations.
+
+`stash` is an open-source tool to store text in encrypted form. The encrypted data can be stored in untrusted locations without compromising it,
+granted the encryption-key is unguessable.
 
 ## Installation
 
