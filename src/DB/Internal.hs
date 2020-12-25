@@ -226,7 +226,7 @@ getPlainTrees_ conn ekey pid = do
   mapM tf plainNodes where
   tf n = do
     children <- getPlainTrees_ conn ekey $ __id n
-    return $ PlainTree (HM.fromList [(__key n, (__value n, children))])
+    return $ PlainTree (HM.fromList [(__key n, (__id n, __value n, children))])
 
 -- |Gets all nodes in database in decrypted (plain-node) form.
 getAllPlainNodes :: EncryptionKey -> IO [PlainNode]

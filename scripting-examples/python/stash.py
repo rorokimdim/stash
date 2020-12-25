@@ -123,7 +123,7 @@ def stash_nodes(parent_id=0):
 def stash_trees(parent_id=0):
     """Gets all nodes stored in stash as a list of trees.
 
-    Simlar to stash-nodes but as nested structures (key -> [value, children]) rather than a list of nodes.
+    Simlar to stash-nodes but as nested structures (key -> [node-id, value, children]) rather than a list of nodes.
 
     If a parent-node-id is provided, only nodes with that parent-id are returned.
     """
