@@ -17,7 +17,7 @@ type ParentId = Integer
 type PlainKey = T.Text
 type PlainValue = T.Text
 
-newtype PlainTree = PlainTree (HM.HashMap PlainKey (NodeId, PlainValue, [PlainTree])) deriving (Show)
+newtype PlainTree = PlainTree (HM.HashMap PlainKey (NodeId, PlainValue, PlainTree)) deriving (Show)
 
 data TextFormat = JSONText | OrgText | MarkdownText
 instance Show TextFormat where

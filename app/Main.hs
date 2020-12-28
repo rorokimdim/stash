@@ -820,8 +820,8 @@ browseText format = do
 
 dump :: TextFormat -> IO ()
 dump JSONText = do
-  ekey       <- getEncryptionKey
-  plainTrees <- DB.getPlainTrees ekey 0
+  ekey      <- getEncryptionKey
+  plainTree <- DB.getPlainTree ekey 0
   let
     config = AesonPretty.Config
       { confIndent          = AesonPretty.Spaces 2
@@ -829,7 +829,7 @@ dump JSONText = do
       , confNumFormat       = AesonPretty.Generic
       , confTrailingNewline = False
       }
-  BLC.putStrLn $ AesonPretty.encodePretty' config plainTrees
+  BLC.putStrLn $ AesonPretty.encodePretty' config plainTree
 dump format = do
   ekey       <- getEncryptionKey
   plainNodes <- DB.getAllPlainNodes ekey

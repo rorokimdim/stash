@@ -120,14 +120,48 @@ def stash_nodes(parent_id=0):
     return stash_invoke('nodes', parent_id)
 
 
-def stash_trees(parent_id=0):
-    """Gets all nodes stored in stash as a list of trees.
+def stash_tree(parent_id=0):
+    """Gets all nodes stored in stash as a tree.
 
-    Simlar to stash-nodes but as nested structures (key -> [node-id, value, children]) rather than a list of nodes.
+    Returns a dict of the form {key: [node-id, value, child-tree]}.
 
     If a parent-node-id is provided, only nodes with that parent-id are returned.
     """
-    return stash_invoke('trees', parent_id)
+    return stash_invoke('tree', parent_id)
+
+
+def stash_tree_on_id(parent_id=0):
+    """Gets all nodes stored in stash as a tree indexed by node-ids.
+
+    Returns a dict of the form {id: {"key": key, "value": value "children": child-tree}}.
+
+    If a parent-node-id is provided, only nodes with that parent-id are returned.
+    """
+    def inner(stree):
+        tree = {}
+        for k, (nid, value, child_stree) in stree.items():
+            tree[nid] = dict(key=k, value=value, children=inner(child_stree))
+        return tree
+
+    return inner(stash_tree(parent_id=parent_id))
+
+
+def stash_tree_on_id_to_paths(tree_on_id):
+    """Gets paths to nodes in a tree-on-id data-structure.
+
+    See stash_tree_on_id function.
+    """
+    paths = {}
+
+    def inner(t, pid):
+        for k, v in t.items():
+            paths[k] = paths.get(pid, []) + [k]
+            children = v['children']
+            if children:
+                inner(children, k)
+
+    inner(tree_on_id, 0)
+    return paths
 
 
 def stash_node_versions(node_id):

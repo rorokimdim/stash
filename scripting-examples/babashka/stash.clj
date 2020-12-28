@@ -33,14 +33,49 @@
   ([] (stash-nodes 0))
   ([parent-id] (stash/nodes parent-id)))
 
-(defn stash-trees
-  "Gets all nodes stored in stash as a list of trees.
+(defn stash-tree
+  "Gets all nodes stored in stash as a tree.
 
-  Simlar to stash-nodes but as nested structures (key -> [node-id value children]) rather than a list of nodes.
+  Returns a hash-map of the form {key [node-id value child-tree]}.
 
   If a parent-node-id is provided, only nodes with that parent-id are returned."
-  ([] (stash-trees 0))
-  ([parent-id] (stash/trees parent-id)))
+  ([] (stash-tree 0))
+  ([parent-id] (stash/tree parent-id)))
+
+(defn stash-tree->stash-tree-on-id
+  "Converts a stash-tree to an equivalent tree indexed on node-ids."
+  [stree]
+  (apply merge
+         (for [[k [node-id node-value child-stree]] (into [] stree)]
+           {node-id
+            {:key k
+             :value node-value
+             :children (if (empty? child-stree)
+                         {}
+                         (stash-tree->stash-tree-on-id child-stree))}})))
+
+(defn stash-tree-on-id
+  "Gets all nodes stored in stash as a tree indexed by node-ids.
+
+  Returns a hash-map of the form {id {:key key :value value :children child-tree}}.
+
+  If a parent-node-id is provided, only nodes with that parent-id are returned."
+  ([] (stash-tree-on-id 0))
+  ([parent-id]
+   (stash-tree->stash-tree-on-id (stash-tree parent-id))))
+
+(defn stash-tree-on-id->paths [tree-on-id]
+  "Gets paths to nodes in a tree-on-id data-structure.
+
+  See stash-tree-on-id function."
+  (let [paths (atom {})
+        inner (fn f [t pid]
+                (doseq [[nid {children :children}] (into [] t)]
+                  (swap! paths assoc nid (conj (get @paths pid []) nid))
+                  (if (seq children)
+                    (f children nid))))]
+    (inner tree-on-id 0)
+    @paths))
 
 (defn stash-node-versions
   "Gets all version of a node.
@@ -88,7 +123,7 @@
       (.inheritIO)
       (.start)
       (.waitFor))
-  (stash-trees))
+  (stash-tree))
 
 (def editor-command (or (System/getenv "EDITOR") "vim"))
 (defn edit

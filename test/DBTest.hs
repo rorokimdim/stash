@@ -5,8 +5,9 @@ import System.Environment (setEnv)
 import Test.Tasty
 import Test.Tasty.HUnit
 
-import qualified Data.Text as T
 import qualified DB.Internal as DB
+import qualified Data.HashMap.Strict as HM
+import qualified Data.Text as T
 
 import Types
 
@@ -22,6 +23,8 @@ unitTests = testGroup
       DB.bootstrap_ conn ekey
       nid <- DB.addNode_ conn ekey 0 "a" "apple"
       assertEqual "addNode" 1 nid
+      pnode <- DB.getPlainNodeById_ conn ekey nid
+      assertEqual "getPlainNodeById" (__id <$> pnode) (Just nid)
       nids <- DB.save_ conn ekey 0 ["a", "b", "c"] "cherry"
       assertEqual "save" [1, 2, 3] nids
       nids <- DB.getIdsInPath_ conn 0 ["a", "b", "c"]
@@ -42,8 +45,8 @@ unitTests = testGroup
       assertEqual "getAllNodes" [1, 2, 3] [ _id n | n <- nodes ]
       path <- DB.getPath_ conn ekey 3
       assertEqual "getPath" ["a", "b", "c"] path
-      trees <- DB.getPlainTrees_ conn ekey 0
-      assertEqual "getPlainTrees" 1 (length trees)
+      (PlainTree hmap) <- DB.getPlainTree_ conn ekey 0
+      assertEqual "getPlainTree" 1 (HM.size hmap)
       idsToDelete <- DB.getIds_ conn 2
       assertEqual "getIds" [2, 3] idsToDelete
       DB.deleteNodes_ conn idsToDelete

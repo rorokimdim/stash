@@ -6,10 +6,9 @@ CLASSPATH=$(clojure -Spath)
 echo -n "Enter encryption key: "
 read -rs ekey
 
-BB_COMMAND="bb"
 if command -v rlwrap &> /dev/null
 then
-    BB_COMMAND="rlwrap bb"
+    STASH_ENCRYPTION_KEY=$ekey BABASHKA_PRELOADS='(load-file "stash.clj")' rlwrap -r -q '\"' -b "(){}[],^%#@\";:'" bb --classpath "$CLASSPATH" "$@"
+else
+    STASH_ENCRYPTION_KEY=$ekey BABASHKA_PRELOADS='(load-file "stash.clj")' bb --classpath "$CLASSPATH" "$@"
 fi
-
-STASH_ENCRYPTION_KEY=$ekey BABASHKA_PRELOADS='(load-file "stash.clj")' $BB_COMMAND --classpath "$CLASSPATH" "$@"

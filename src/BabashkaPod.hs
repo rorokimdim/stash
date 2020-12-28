@@ -138,8 +138,8 @@ handleNodeVersionsRequest s rid args = do
         ]
     _ -> return (s, invalid)
 
-handleTreesRequest :: PodState -> PodRequestId -> Args -> IO (PodState, BE.BEncode)
-handleTreesRequest s rid args = do
+handleTreeRequest :: PodState -> PodRequestId -> Args -> IO (PodState, BE.BEncode)
+handleTreeRequest s rid args = do
   let
     ekey       = _ekey s
     parsedArgs = decode args :: Maybe [ParentId]
@@ -147,10 +147,10 @@ handleTreesRequest s rid args = do
       Just [x] -> x
       _        -> 0
 
-  trees <- DB.getPlainTrees ekey pid
+  tree <- DB.getPlainTree ekey pid
   continueState s $ BE.BDict $ Map.fromList
     [ ("id"    , BE.BString rid)
-    , ("value" , BE.BString $ encode trees)
+    , ("value" , BE.BString $ encode tree)
     , ("status", BE.BList [BE.BString "done"])
     ]
 
@@ -280,8 +280,8 @@ handleInvokeRequest s (InvokeRequest "pod.rorokimdim.stash/nodes" rid args) =
   handleNodesRequest s rid args
 handleInvokeRequest s (InvokeRequest "pod.rorokimdim.stash/node-versions" rid args) =
   handleNodeVersionsRequest s rid args
-handleInvokeRequest s (InvokeRequest "pod.rorokimdim.stash/trees" rid args) =
-  handleTreesRequest s rid args
+handleInvokeRequest s (InvokeRequest "pod.rorokimdim.stash/tree" rid args) =
+  handleTreeRequest s rid args
 handleInvokeRequest s (InvokeRequest "pod.rorokimdim.stash/get" rid args) =
   handleGetRequest s rid args
 handleInvokeRequest s (InvokeRequest "pod.rorokimdim.stash/set" rid args) =
@@ -330,7 +330,7 @@ podDescription rid = BE.BDict $ Map.fromList
               [ BE.BDict $ Map.fromList [("name", BE.BString "init")]
               , BE.BDict $ Map.fromList [("name", BE.BString "nodes")]
               , BE.BDict $ Map.fromList [("name", BE.BString "node-versions")]
-              , BE.BDict $ Map.fromList [("name", BE.BString "trees")]
+              , BE.BDict $ Map.fromList [("name", BE.BString "tree")]
               , BE.BDict $ Map.fromList [("name", BE.BString "get")]
               , BE.BDict $ Map.fromList [("name", BE.BString "keys")]
               , BE.BDict $ Map.fromList [("name", BE.BString "set")]

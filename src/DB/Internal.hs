@@ -187,6 +187,19 @@ updateNode_ conn ekey nid key value = do
   let sql = "UPDATE node SET hkey=?, hvalue=?, key=?, value=? WHERE id=?"
   execute conn (Query sql) (hkey, hvalue, encryptedKey, encryptedValue, nid)
 
+-- |Gets plain-node by id.
+getPlainNodeById :: EncryptionKey -> NodeId -> IO (Maybe PlainNode)
+getPlainNodeById ekey nid = do
+  connectionString <- getConnectionString
+  withConnection connectionString $ \conn -> getPlainNodeById_ conn ekey nid
+
+getPlainNodeById_ :: Connection -> EncryptionKey -> NodeId -> IO (Maybe PlainNode)
+getPlainNodeById_ conn ekey nid = do
+  result <- query conn "SELECT * FROM node WHERE id=?" (Only nid) :: IO [Node]
+  case result of
+    [node] -> Just <$> decryptNode ekey node
+    []     -> return Nothing
+
 -- |Gets all plain nodes under provided parent.
 getPlainNodes :: EncryptionKey -> ParentId -> IO [PlainNode]
 getPlainNodes ekey pid = do
@@ -215,18 +228,30 @@ getNodes_ conn pid = do
   query conn "SELECT * FROM node WHERE parent=?" (Only pid) :: IO [Node]
 
 -- |Gets plain-tree starting from given parent-id.
-getPlainTrees :: EncryptionKey -> ParentId -> IO [PlainTree]
-getPlainTrees ekey pid = do
+getPlainTree :: EncryptionKey -> ParentId -> IO PlainTree
+getPlainTree ekey pid = do
   connectionString <- getConnectionString
-  withConnection connectionString $ \conn -> getPlainTrees_ conn ekey pid
+  plainTree        <- withConnection connectionString $ \conn -> getPlainTree_ conn ekey pid
+  pnode            <- getPlainNodeById ekey pid
+  let
+    (key, value) = case pnode of
+      Nothing -> ("root", "")
+      Just n  -> (__key n, __value n)
+  return $ PlainTree (HM.fromList [(key, (pid, value, plainTree))])
 
-getPlainTrees_ :: Connection -> EncryptionKey -> ParentId -> IO [PlainTree]
-getPlainTrees_ conn ekey pid = do
+getPlainTree_ :: Connection -> EncryptionKey -> ParentId -> IO PlainTree
+getPlainTree_ conn ekey pid = do
   plainNodes <- getPlainNodes_ conn ekey pid
-  mapM tf plainNodes where
-  tf n = do
-    children <- getPlainTrees_ conn ekey $ __id n
-    return $ PlainTree (HM.fromList [(__key n, (__id n, __value n, children))])
+  let
+    merge (PlainTree m0) (PlainTree m1) = PlainTree (HM.union m0 m1)
+    tf n = do
+      children <- getPlainTree_ conn ekey $ __id n
+      return $ PlainTree (HM.fromList [(__key n, (__id n, __value n, children))])
+  if null plainNodes
+    then return $ PlainTree HM.empty
+    else do
+      ts <- mapM tf plainNodes
+      return $ foldl merge (PlainTree HM.empty) ts
 
 -- |Gets all nodes in database in decrypted (plain-node) form.
 getAllPlainNodes :: EncryptionKey -> IO [PlainNode]
@@ -408,7 +433,7 @@ getValueById conn ekey nid = do
   case result of
     Just encryptedValue -> do
       value <- Cipher.decrypt ekey encryptedValue
-      return (Just value)
+      return $ Just value
     Nothing -> return Nothing
 
 -- |Gets all plain-versions of a node.
