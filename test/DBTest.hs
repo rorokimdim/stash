@@ -54,6 +54,20 @@ unitTests = testGroup
       assertEqual "deleteNodes" [1] [ _id n | n <- nodes ]
       decryptedNodes <- DB.decryptNodes ekey nodes
       assertEqual "decryptNodes" [("a", "apple")] [ (__key n, __value n) | n <- decryptedNodes ]
+  , testCase "Tests for renaming node" $ do
+    let ekey = "test-ekey"
+    DB.runInMemoryDB $ \conn -> do
+      DB.bootstrap_ conn ekey
+      nidApple  <- DB.addNode_ conn ekey 0 "a" "apple"
+      nidOrange <- DB.addNode_ conn ekey 0 "o" "orange"
+      assertEqual "addNode" 1 nidApple
+      assertEqual "addNode" 2 nidOrange
+      result <- DB.renameNode_ conn ekey nidApple "microsoft"
+      assertEqual "renameNode result" True result
+      pnode <- DB.getPlainNodeById_ conn ekey nidApple
+      assertEqual "renameNode" (Just "microsoft") (__key <$> pnode)
+      result <- DB.renameNode_ conn ekey nidOrange "microsoft"
+      assertEqual "renameNode result" False result
   , testCase "Tests for Node History" $ do
     let ekey = "test-ekey"
     DB.runInMemoryDB $ \conn -> do

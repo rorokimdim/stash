@@ -345,12 +345,11 @@ renameSelectedKey s@AppState { _uiMode = GENERIC_EDIT GERenameKey } = do
   let (selectedNode, pid, si) = getSelected s
   let ekey                    = _ekey s
   let nid                     = __id selectedNode
-  let value                   = __value selectedNode
   let findSelectedIndex xs x = fromMaybe 0 $ findIndex (\n -> __key n == x) xs
   vresult <- validateGenericEditInput s
   case vresult of
     VRSuccess -> do
-      DB.updateNode ekey nid newKey value
+      DB.renameNode ekey nid newKey
       newState <- buildState pid si $ switchToBrowseMode s
       let newPlainNodes = _plainNodes newState
       moveKeysList newState (findSelectedIndex newPlainNodes newKey)

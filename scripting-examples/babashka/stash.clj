@@ -106,6 +106,11 @@
   [parent-id k v]
   (stash/add parent-id k v))
 
+(defn stash-rename
+  "Renames a node."
+  [nid new-name]
+  (stash/rename nid new-name))
+
 (defn stash-update
   "Updates a node's value."
   [nid v]

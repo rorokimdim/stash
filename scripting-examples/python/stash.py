@@ -195,6 +195,11 @@ def stash_add(parent_id, key, value):
     return stash_invoke('add', parent_id, key, value)
 
 
+def stash_rename(node_id, new_name):
+    """Renames a node."""
+    return stash_invoke('rename', node_id, new_name)
+
+
 def stash_update(node_id, value):
     """Updates a node's value."""
     return stash_invoke('update', node_id, value)

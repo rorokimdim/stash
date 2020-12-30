@@ -233,6 +233,27 @@ handleAddRequest s rid args = do
             ]
         else continueState s $ constructBencodeError rid "Key already exists" (BE.BString "null")
 
+handleRenameRequest :: PodState -> PodRequestId -> Args -> IO (PodState, BE.BEncode)
+handleRenameRequest s rid args = do
+  let
+    ekey = _ekey s
+    invalid =
+      constructBencodeError rid "Invalid input; must be node-id, new-name" (BE.BString "null")
+    parsedArgs = decode args :: Maybe (NodeId, PlainKey)
+
+  case parsedArgs of
+    Nothing          -> return (s, invalid)
+    Just (nid, pkey) -> do
+      result <- DB.renameNode ekey nid pkey
+      if result
+        then continueState s $ BE.BDict $ Map.fromList
+          [ ("id"    , BE.BString rid)
+          , ("value" , BE.BString "true")
+          , ("status", BE.BList [BE.BString "done"])
+          ]
+        else continueState s
+          $ constructBencodeError rid "Invalid new name. Name already exists." (BE.BString "null")
+
 handleUpdateRequest :: PodState -> PodRequestId -> Args -> IO (PodState, BE.BEncode)
 handleUpdateRequest s rid args = do
   let
@@ -290,6 +311,8 @@ handleInvokeRequest s (InvokeRequest "pod.rorokimdim.stash/keys" rid args) =
   handleKeysRequest s rid args
 handleInvokeRequest s (InvokeRequest "pod.rorokimdim.stash/add" rid args) =
   handleAddRequest s rid args
+handleInvokeRequest s (InvokeRequest "pod.rorokimdim.stash/rename" rid args) =
+  handleRenameRequest s rid args
 handleInvokeRequest s (InvokeRequest "pod.rorokimdim.stash/update" rid args) =
   handleUpdateRequest s rid args
 handleInvokeRequest s (InvokeRequest "pod.rorokimdim.stash/delete" rid args) =
@@ -335,6 +358,7 @@ podDescription rid = BE.BDict $ Map.fromList
               , BE.BDict $ Map.fromList [("name", BE.BString "keys")]
               , BE.BDict $ Map.fromList [("name", BE.BString "set")]
               , BE.BDict $ Map.fromList [("name", BE.BString "add")]
+              , BE.BDict $ Map.fromList [("name", BE.BString "rename")]
               , BE.BDict $ Map.fromList [("name", BE.BString "update")]
               , BE.BDict $ Map.fromList [("name", BE.BString "delete")]
               ]

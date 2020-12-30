@@ -20,6 +20,7 @@ module DB
   , getPlainNodes
   , getPlainTree
   , lookupId
+  , renameNode
   , retrieve
   , save
   , setConfig

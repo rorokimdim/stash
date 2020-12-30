@@ -187,6 +187,25 @@ updateNode_ conn ekey nid key value = do
   let sql = "UPDATE node SET hkey=?, hvalue=?, key=?, value=? WHERE id=?"
   execute conn (Query sql) (hkey, hvalue, encryptedKey, encryptedValue, nid)
 
+-- |Renames a node.
+renameNode :: EncryptionKey -> NodeId -> PlainKey -> IO Bool
+renameNode ekey nid key = do
+  let cleanedKey = T.strip key
+  connectionString <- getConnectionString
+  withConnection connectionString $ \conn -> renameNode_ conn ekey nid cleanedKey
+
+renameNode_ :: Connection -> EncryptionKey -> NodeId -> PlainKey -> IO Bool
+renameNode_ conn ekey nid key = do
+  salt <- getHashSalt_ conn
+  let hkey = Cipher.hash salt key
+  encryptedKey <- Cipher.encrypt ekey key
+  let sql = "UPDATE node SET hkey=?, key=? WHERE id=?"
+
+  tryRename <- try $ execute conn (Query sql) (hkey, encryptedKey, nid)
+  case (tryRename :: Either SomeException ()) of
+    Left  e -> return False
+    Right _ -> return True
+
 -- |Gets plain-node by id.
 getPlainNodeById :: EncryptionKey -> NodeId -> IO (Maybe PlainNode)
 getPlainNodeById ekey nid = do
