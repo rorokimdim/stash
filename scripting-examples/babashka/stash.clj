@@ -26,6 +26,11 @@
                  "stash-path" stash-file-path
                  "create-stash-if-missing" true})))
 
+(defn stash-version
+  "Gets version of stash command."
+  []
+  (stash/version))
+
 (defn stash-nodes
   "Gets all nodes stored in stash.
 

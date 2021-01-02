@@ -39,6 +39,7 @@ data Command = DumpCommand FilePath DumpFormat
              | BackupCommand FilePath
              | CreateCommand FilePath
              | ImportCommand FilePath ImportFormat
+             | VersionCommand
 
 browseFormatReader :: O.ReadM BrowseFormat
 browseFormatReader = O.eitherReader f
@@ -140,6 +141,9 @@ backupCommandParser = BackupCommand <$> stashFilePathArgument
 createCommandParser :: O.Parser Command
 createCommandParser = CreateCommand <$> stashFilePathArgument
 
+versionCommandParser :: O.Parser Command
+versionCommandParser = pure VersionCommand
+
 type CommandAlias = String
 type CommandDescription = String
 buildParser
@@ -155,9 +159,10 @@ buildParser xs = concat $ do
 
 commands :: [O.Mod O.CommandFields Command]
 commands = buildParser
-  [ (["create"], createCommandParser, "Create stash")
-  , (["browse"], browseCommandParser, "Browse stash")
-  , (["dump"]  , dumpCommandParser  , "Dump stash")
-  , (["backup"], backupCommandParser, "Backup stash")
-  , (["import"], importCommandParser, "Import text into stash from stdin")
+  [ (["create"] , createCommandParser , "Create stash")
+  , (["browse"] , browseCommandParser , "Browse stash")
+  , (["dump"]   , dumpCommandParser   , "Dump stash")
+  , (["backup"] , backupCommandParser , "Backup stash")
+  , (["import"] , importCommandParser , "Import text into stash from stdin")
+  , (["version"], versionCommandParser, "Print stash version")
   ]

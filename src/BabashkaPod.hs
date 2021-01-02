@@ -14,6 +14,7 @@ import qualified Data.Text as T
 
 import qualified DB
 import qualified IOUtils
+import qualified Version
 
 import Types
 
@@ -289,6 +290,14 @@ handleDeleteRequest s rid args = do
         , ("status", BE.BList [BE.BString "done"])
         ]
 
+handleVersionRequest :: PodState -> PodRequestId -> Args -> IO (PodState, BE.BEncode)
+handleVersionRequest s rid args = do
+  continueState s $ BE.BDict $ Map.fromList
+    [ ("id"    , BE.BString rid)
+    , ("value" , BE.BString (encode Version.appVersion))
+    , ("status", BE.BList [BE.BString "done"])
+    ]
+
 handleInvokeRequest :: PodState -> InvokeRequest -> IO (PodState, BE.BEncode)
 handleInvokeRequest s (InvokeRequest "pod.rorokimdim.stash/init" rid args) =
   handleInitRequest s rid args
@@ -317,6 +326,8 @@ handleInvokeRequest s (InvokeRequest "pod.rorokimdim.stash/update" rid args) =
   handleUpdateRequest s rid args
 handleInvokeRequest s (InvokeRequest "pod.rorokimdim.stash/delete" rid args) =
   handleDeleteRequest s rid args
+handleInvokeRequest s (InvokeRequest "pod.rorokimdim.stash/version" rid args) =
+  handleVersionRequest s rid args
 handleInvokeRequest s (InvokeRequest var rid _) =
   continueState s $ constructBencodeError rid "Invalid invoke request" (BE.BString var)
 
@@ -361,6 +372,7 @@ podDescription rid = BE.BDict $ Map.fromList
               , BE.BDict $ Map.fromList [("name", BE.BString "rename")]
               , BE.BDict $ Map.fromList [("name", BE.BString "update")]
               , BE.BDict $ Map.fromList [("name", BE.BString "delete")]
+              , BE.BDict $ Map.fromList [("name", BE.BString "version")]
               ]
             )
           ]

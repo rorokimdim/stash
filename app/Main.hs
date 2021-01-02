@@ -45,11 +45,9 @@ import qualified DB
 import qualified IOUtils
 import qualified TextTransform
 import qualified BabashkaPod as BPod
+import qualified Version
 
 import Types
-
-appVersion :: String
-appVersion = "0.2.0"
 
 type SelectedIndex = Int
 type ResourceName = String
@@ -926,6 +924,7 @@ processCommand (C.ImportCommand dbPath format) = do
   case format of
     C.ImportFormatMarkdown -> importText MarkdownText
     C.ImportFormatOrg      -> importText OrgText
+processCommand C.VersionCommand = putStrLn Version.appVersion
 
 setUpLogging :: IO ()
 setUpLogging = do
@@ -950,6 +949,6 @@ main = do
   opts   = O.info
     (parser O.<**> O.helper)
     (O.fullDesc <> O.progDesc "stash [create | browse | dump | backup | import]" <> O.header
-      ("Stash " <> appVersion <> " https://github.com/rorokimdim/stash")
+      ("Stash " <> Version.appVersion <> " https://github.com/rorokimdim/stash")
     )
   preferences = O.prefs (O.showHelpOnError <> O.showHelpOnEmpty)

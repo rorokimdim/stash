@@ -33,8 +33,8 @@ get_next_version() {
 }
 
 maybe_update_version() {
-    sed -i.backup "s/appVersion =.*/appVersion = \"$(get_next_version)\"/" app/Main.hs
-    rm -rf app/Main.hs.backup
+    sed -i.backup "s/appVersion =.*/appVersion = \"$(get_next_version)\"/" src/Version.hs
+    rm -rf src/Version.hs.backup
 }
 
 check_stack

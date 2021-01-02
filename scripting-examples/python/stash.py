@@ -112,6 +112,11 @@ def stash_init():
          'create-stash-if-missing': True})
 
 
+def stash_version():
+    """Gets version of stash command."""
+    return stash_invoke('version')
+
+
 def stash_nodes(parent_id=0):
     """Gets all nodes stored in stash.
 
