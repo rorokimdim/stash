@@ -199,6 +199,8 @@ We will need to first enter encryption-key for the source stash-file followed by
 If you are familiar with [clojure](https://clojure.org/) or [babashka](https://github.com/borkdude/babashka),
 see [babashka-example](https://github.com/rorokimdim/stash/tree/master/scripting-examples/babashka).
 
+Common-lisp folks see [common-lisp-example](https://github.com/rorokimdim/stash/tree/master/scripting-examples/common-lisp).
+
 Python folks see [python-example](https://github.com/rorokimdim/stash/tree/master/scripting-examples/python).
 
 ## Customization
