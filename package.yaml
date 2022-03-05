@@ -93,6 +93,9 @@ executables:
     - -with-rtsopts=-N
     dependencies:
     - stash
+    when:
+    - condition: false
+      other-modules: Paths_stash
 
 tests:
   stash-test:
