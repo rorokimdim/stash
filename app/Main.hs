@@ -27,6 +27,7 @@ import qualified Data.HashMap.Strict as HM
 import qualified Data.HashSet as Set
 import qualified Data.IORef as IORef
 import qualified Data.Text as T
+import qualified Data.Text.Encoding as TE
 import qualified Data.Text.IO as TIO
 import qualified Data.Time as Time
 import qualified Data.Vector as Vec
@@ -35,6 +36,7 @@ import qualified Graphics.Vty.Attributes as VA
 import qualified Options.Applicative as O
 import qualified System.Hclip as Hclip
 import qualified System.IO.Memoize as Memoize
+import qualified Text.Editor as TEditor
 import qualified Text.Fuzzy as TF
 import qualified Text.PrettyPrint.ANSI.Leijen as PP
 import qualified Text.Tabl as Table
@@ -69,6 +71,20 @@ data AppState = AppState {
   _genericEditor :: BWE.Editor T.Text ResourceName,
   _genericEditPrompt :: T.Text
 } deriving (Show)
+
+
+-- |Opens given value in an editor and returned the edited value.
+--
+-- By default the editor set it EDITOR environment variable is used. If it is not set
+-- prompts user to enter editor command to use. If all fails, defaults to vim.
+edit :: String -> T.Text -> IO T.Text
+edit fileExtension initialContent = do
+  let template = TEditor.mkTemplate fileExtension
+  editorVar <- IOUtils.getEnvWithPromptFallback "EDITOR" "Enter editor path: " False False
+  let editorCmdParts = T.words editorVar
+  let editor = T.unpack $ if null editorCmdParts then "vim" else head editorCmdParts
+  bytes <- TEditor.runSpecificEditor editor template $ TE.encodeUtf8 initialContent
+  return $ TE.decodeUtf8 bytes
 
 buildBrickApp :: IO (BM.App AppState e ResourceName)
 buildBrickApp = do
@@ -283,7 +299,7 @@ editSelectedValue s = do
   let
     ext = T.unpack $ if length splits > 1 then last splits else "txt"
       where splits = T.splitOn "." key
-  newValue <- IOUtils.edit ext value
+  newValue <- edit ext value
   DB.updateNodeValue ekey (__id selectedNode) newValue
   buildState pid si s
 
@@ -301,7 +317,7 @@ showHistoryOfSelectedValue s = do
     history = ":: History for " <> path <> " ::" <> "\n" <> T.intercalate
       "\n"
       [ "▸ " <> T.pack (show modified) <> "\n" <> __value n | n <- nodes ]
-  IOUtils.edit "txt" history
+  edit "txt" history
 
   return s
 
@@ -768,8 +784,8 @@ browseText format = do
   lastUserResponseRef <- IORef.newIORef IOUtils.URNo
 
   newText             <- case format of
-    OrgText      -> IOUtils.edit "org" oldText
-    MarkdownText -> IOUtils.edit "md" oldText
+    OrgText      -> edit "org" oldText
+    MarkdownText -> edit "md" oldText
   let
     lmap = HM.fromList [ ((__parent n, __key n), n) | n <- plainNodes ]
     lookup pid (k : ks) = case HM.lookup (pid, k) lmap of

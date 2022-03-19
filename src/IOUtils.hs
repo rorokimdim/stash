@@ -1,6 +1,5 @@
 module IOUtils
   ( createMissingDirectories
-  , edit
   , getEnvWithDefault
   , getEnvWithPromptFallback
   , getEnvWithPromptFallback_
@@ -28,10 +27,8 @@ import Text.Printf (printf)
 
 import qualified Control.Logging as L
 import qualified Data.Text as T
-import qualified Data.Text.Encoding as TE
 import qualified System.Console.Haskeline as HL
 import qualified System.Directory as Directory
-import qualified Text.Editor as TEditor
 
 data UserResponseYesNo = URYes | URNo | URYesToAll | URNoToAll deriving (Eq, Show)
 
@@ -149,19 +146,6 @@ getEnvWithPromptFallback_ handle name promptMessage mask confirm = do
   updateEnv name key = do
     setEnv name $ T.unpack key
     return key
-
--- |Opens given value in an editor and returned the edited value.
---
--- By default the editor set it EDITOR environment variable is used. If it is not set
--- prompts user to enter editor command to use. If all fails, defaults to vim.
-edit :: String -> T.Text -> IO T.Text
-edit fileExtension initialContent = do
-  let template = TEditor.mkTemplate fileExtension
-  editorVar <- getEnvWithPromptFallback "EDITOR" "Enter editor path: " False False
-  let editorCmdParts = T.words editorVar
-  let editor = T.unpack $ if null editorCmdParts then "vim" else head editorCmdParts
-  bytes <- TEditor.runSpecificEditor editor template $ TE.encodeUtf8 initialContent
-  return $ TE.decodeUtf8 bytes
 
 -- |Runs an IO action and logs timing information.
 logTime :: T.Text -> IO a -> IO a

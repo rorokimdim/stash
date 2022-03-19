@@ -40,6 +40,13 @@ packages:
   original:
     hackage: pretty-diff-0.2.0.2
 - completed:
+    hackage: regex-posix-clib-2.7@sha256:998fca06da3d719818f0691ef0b8b9b7375afeea228cb08bd9e2db53f96b0cd7,1232
+    pantry-tree:
+      size: 524
+      sha256: 5bf20952472d930323766d250f5fbbe3fe6f2cd3d931e5cf7b62a238ab2099ff
+  original:
+    hackage: regex-posix-clib-2.7
+- completed:
     hackage: sqlite-simple-0.4.18.0@sha256:3ceea56375c0a3590c814e411a4eb86943f8d31b93b110ca159c90689b6b39e5,3002
     pantry-tree:
       size: 1930

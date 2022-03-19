@@ -4,4 +4,4 @@ module Version
 where
 
 appVersion :: String
-appVersion = "0.3.0"
+appVersion = "0.3.1"

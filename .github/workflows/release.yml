@@ -1,0 +1,104 @@
+name: Stash Release
+
+on:
+  # Trigger the workflow on the new 'v*' tag created
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  create_release:
+    name: Create Github Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v3
+
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1.1.4
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: Release ${{ github.ref }}
+          draft: true
+          prerelease: false
+
+      - name: Output Release URL File
+        run: echo "${{ steps.create_release.outputs.upload_url }}" > release_url.txt
+      - name: Save Release URL File for publish
+        uses: actions/upload-artifact@v3
+        with:
+          name: release_url
+          path: release_url.txt
+
+  build_artifact:
+    needs: [create_release]
+    name: ${{ matrix.os }}/GHC ${{ matrix.ghc }}/${{ github.ref }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macOS-latest, windows-latest]
+        ghc:
+          - "8.8.4"
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v3
+
+      - name: Set tag name
+        uses: olegtarasov/get-tag@v2.1.1
+        id: tag
+        with:
+          tagRegex: "v(.*)"
+          tagRegexGroup: 1
+
+      - name: Setup Haskell
+        uses: haskell/actions/setup@v1.2.9
+        id: setup-haskell-stack
+        with:
+          ghc-version: ${{ matrix.ghc }}
+          enable-stack: true
+
+      - if: matrix.os != 'windows-latest'
+        name: Build binary for ubuntu-latest / macOS-latest
+        run: |
+          mkdir dist
+          stack install --local-bin-path dist/
+
+      - if: matrix.os == 'windows-latest'
+        name: Build binary for windows-latest
+        run: |
+          mkdir dist
+          del package.yaml
+          move package.windows.yaml package.yaml
+          stack install --local-bin-path dist/
+
+      - if: matrix.os == 'windows-latest'
+        name: Set extension to .exe on Windows
+        run: echo "EXT=.exe" >> $GITHUB_ENV
+
+      - name: Set binary path name
+        run: echo "BINARY_PATH=./dist/stash${{ env.EXT }}" >> $GITHUB_ENV
+
+      - name: Load Release URL File from release job
+        uses: actions/download-artifact@v3
+        with:
+          name: release_url
+
+      - name: Get Release File Name & Upload URL
+        id: get_release_info
+        run: |
+          echo "::set-output name=upload_url::$(cat release_url.txt)"
+
+      - name: Upload Release Asset
+        id: upload-release-asset
+        uses: actions/upload-release-asset@v1.0.2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.get_release_info.outputs.upload_url }}
+          asset_path: ${{ env.BINARY_PATH }}
+          asset_name: stash-${{ steps.tag.outputs.tag }}-${{ runner.os }}-ghc-${{ matrix.ghc }}${{ env.EXT }}
+          asset_content_type: application/octet-stream
