@@ -99,6 +99,8 @@ The salt stored during `stash create` is also used for hashing any data for inde
 
 ## Browsing
 
+This feature does not currently work on windows.
+
 ### Terminal user interface (default)
 
 ```

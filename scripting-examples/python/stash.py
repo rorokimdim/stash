@@ -233,7 +233,10 @@ def stash_invoke(name, *args):
 
 
 def stash_browse():
-    """Launches stash terminal-ui."""
+    """Launches stash terminal-ui.
+
+    Does not currently work on windows.
+    """
     subprocess.Popen([POD_COMMAND, 'browse', STASH_FILE_PATH]).wait()
 
 

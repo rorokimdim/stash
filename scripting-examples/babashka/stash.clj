@@ -127,7 +127,9 @@
   (apply stash/delete nids))
 
 (defn stash-browse
-  "Launches stash terminal-ui."
+  "Launches stash terminal-ui.
+
+  Does not currently work on windows."
   []
   (-> (ProcessBuilder. [stash-command "browse" stash-file-path])
       (.inheritIO)
@@ -137,7 +139,9 @@
 
 (def editor-command (or (System/getenv "EDITOR") "vim"))
 (defn edit
-  "Opens user.clj in editor and loads the content after editor exits."
+  "Opens user.clj in editor and loads the content after editor exits.
+
+  Does not currently work on windows."
   []
   (let [f (io/file "user.clj")]
     (-> (ProcessBuilder. [editor-command (.getPath f)])
