@@ -219,7 +219,7 @@ mainFrame s = BWC.withBorderStyle BWBS.unicode $ BWB.borderWithLabel (BWC.txt "S
     , BWC.hLimitPercent 70 $ BWC.padLeft (BT.Pad 1) rightWidget
     ]
   , BWB.hBorder
-  , BWC.txtWrap selectedNodeValue
+  , BWC.vLimitPercent 90 $ BWC.txtWrap selectedNodeValue
   , BWC.fill ' '
   , inputWidget s
   ]
