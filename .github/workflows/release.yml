@@ -66,6 +66,7 @@ jobs:
         run: |
           mkdir dist
           stack install --local-bin-path dist/
+          echo "BINARY_PATH=./dist/stash" >> $GITHUB_ENV
 
       - if: matrix.os == 'windows-latest'
         name: Build binary for windows-latest
@@ -74,13 +75,8 @@ jobs:
           del package.yaml
           move package.windows.yaml package.yaml
           stack install --local-bin-path dist/
-
-      - if: matrix.os == 'windows-latest'
-        name: Set extension to .exe on Windows
-        run: echo "EXT=.exe" >> $GITHUB_ENV
-
-      - name: Set binary path name
-        run: echo "BINARY_PATH=./dist/stash${{ env.EXT }}" >> $GITHUB_ENV
+          echo "EXT=.exe" >> $env:GITHUB_ENV
+          echo "BINARY_PATH=./dist/stash.exe" >> $env:GITHUB_ENV
 
       - name: Load Release URL File from release job
         uses: actions/download-artifact@v3
