@@ -77,7 +77,7 @@ jobs:
           del package.yaml
           move package.windows.yaml package.yaml
           stack install --local-bin-path dist/
-          powershell Compress-Archive dist/stash stash-${{ runner.os }}.zip
+          powershell Compress-Archive dist\stash.exe stash-${{ runner.os }}.zip
 
       - name: Load Release URL File from release job
         uses: actions/download-artifact@v3
