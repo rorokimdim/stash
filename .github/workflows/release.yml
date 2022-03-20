@@ -60,23 +60,24 @@ jobs:
         with:
           ghc-version: ${{ matrix.ghc }}
           enable-stack: true
+          stack-no-global: true
 
       - if: matrix.os != 'windows-latest'
-        name: Build binary for ubuntu-latest / macOS-latest
+        name: Build artifact for ubuntu-latest / macOS-latest
         run: |
           mkdir dist
           stack install --local-bin-path dist/
-          echo "BINARY_PATH=./dist/stash" >> $GITHUB_ENV
+          cp stash.1 dist/
+          zip -r -j stash-${{ runner.os }}.zip dist/
 
       - if: matrix.os == 'windows-latest'
-        name: Build binary for windows-latest
+        name: Build artifact for windows-latest
         run: |
           mkdir dist
           del package.yaml
           move package.windows.yaml package.yaml
           stack install --local-bin-path dist/
-          echo "EXT=.exe" >> $env:GITHUB_ENV
-          echo "BINARY_PATH=./dist/stash.exe" >> $env:GITHUB_ENV
+          powershell Compress-Archive dist/stash stash-${{ runner.os }}.zip
 
       - name: Load Release URL File from release job
         uses: actions/download-artifact@v3
@@ -95,6 +96,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.get_release_info.outputs.upload_url }}
-          asset_path: ${{ env.BINARY_PATH }}
-          asset_name: stash-${{ steps.tag.outputs.tag }}-${{ runner.os }}-ghc-${{ matrix.ghc }}${{ env.EXT }}
-          asset_content_type: application/octet-stream
+          asset_path: stash-${{ runner.os }}.zip
+          asset_name: stash-${{ runner.os }}.zip
+          asset_content_type: application/zip

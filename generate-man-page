@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+
+pandoc --standalone --from gfm --to man README.md --output stash.1
