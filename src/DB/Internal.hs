@@ -12,8 +12,8 @@ import Text.RawString.QQ
 import qualified Data.HashMap.Strict as HM
 import qualified System.IO.Memoize as Memoize
 
-import qualified IOUtils
 import qualified Cipher
+import qualified IOUtils
 
 import Types
 
@@ -22,8 +22,7 @@ import qualified Data.Text as T
 data DBPathValidationResult = NonExistentDBFile | InvalidDBFile | ValidDBFile
 
 instance FromRow Node where
-  fromRow =
-    Node <$> field <*> field <*> field <*> field <*> field <*> field <*> field <*> field <*> field
+  fromRow = Node <$> field <*> field <*> field <*> field <*> field <*> field <*> field <*> field <*> field
 
 instance FromRow EncryptedKey where
   fromRow = field
@@ -111,8 +110,7 @@ addNode_ conn ekey pid key value = do
   let hvalue    = Cipher.hash salt value
   let insertSQL = "INSERT INTO node (parent, hkey, hvalue, key, value) VALUES (?, ?, ?, ?, ?)"
   execute conn (Query insertSQL) (pid, hkey, hvalue, encryptedKey, encryptedValue)
-  [Only nid] <-
-    query conn "SELECT id FROM node WHERE parent=? AND hkey=?" (pid, hkey) :: IO [Only NodeId]
+  [Only nid] <- query conn "SELECT id FROM node WHERE parent=? AND hkey=?" (pid, hkey) :: IO [Only NodeId]
   return nid
 
 -- |Saves a value under provided list of keys.
@@ -148,11 +146,10 @@ saveSingle conn ekey pid key value overwrite = do
   let
     insertSQL =
       T.pack
-        $ "INSERT INTO node (parent, hkey, hvalue, key, value) VALUES (?, ?, ?, ?, ?) ON CONFLICT(hkey, parent) DO "
+        $  "INSERT INTO node (parent, hkey, hvalue, key, value) VALUES (?, ?, ?, ?, ?) ON CONFLICT(hkey, parent) DO "
         ++ onConflictClause
   execute conn (Query insertSQL) (pid, hkey, hvalue, encryptedKey, encryptedValue)
-  [Only nid] <-
-    query conn "SELECT id FROM node WHERE parent=? AND hkey=?" (pid, hkey) :: IO [Only NodeId]
+  [Only nid] <- query conn "SELECT id FROM node WHERE parent=? AND hkey=?" (pid, hkey) :: IO [Only NodeId]
   return nid
 
 -- |Updates value of a node.
@@ -438,8 +435,7 @@ lookupId_ :: Connection -> ParentId -> PlainKey -> IO (Maybe NodeId)
 lookupId_ conn pid k = do
   salt <- getHashSalt_ conn
   let hkey = Cipher.hash salt k
-  result <-
-    query conn "SELECT id FROM node WHERE parent=? AND hkey=?" (pid, hkey) :: IO [Only NodeId]
+  result <- query conn "SELECT id FROM node WHERE parent=? AND hkey=?" (pid, hkey) :: IO [Only NodeId]
   case result of
     [Only nid] -> return $ Just nid
     []         -> return Nothing
@@ -447,8 +443,7 @@ lookupId_ conn pid k = do
 -- |Gets value of a node by id.
 getValueById :: Connection -> EncryptionKey -> NodeId -> IO (Maybe PlainValue)
 getValueById conn ekey nid = do
-  [Only result] <-
-    query conn "SELECT value FROM node WHERE id=?" (Only nid) :: IO [Only (Maybe EncryptedValue)]
+  [Only result] <- query conn "SELECT value FROM node WHERE id=?" (Only nid) :: IO [Only (Maybe EncryptedValue)]
   case result of
     Just encryptedValue -> do
       value <- Cipher.decrypt ekey encryptedValue
@@ -476,10 +471,7 @@ getAllNodeVersions_ :: Connection -> NodeId -> IO [Node]
 getAllNodeVersions_ conn nid =
   query
     conn
-    (  "SELECT * FROM node WHERE id=? "
-    <> " UNION ALL "
-    <> "SELECT * FROM node_history WHERE id=? ORDER BY version DESC"
-    )
+    ("SELECT * FROM node WHERE id=? " <> " UNION ALL " <> "SELECT * FROM node_history WHERE id=? ORDER BY version DESC")
     (nid, nid) :: IO [Node]
 
 -- |Gets configuration value of a name.
@@ -503,9 +495,7 @@ setConfig name value = do
 
 setConfig_ :: Connection -> T.Text -> T.Text -> IO ()
 setConfig_ conn name value = do
-  let
-    insertSQL
-      = "INSERT INTO config (name, value) VALUES (?, ?) ON CONFLICT(name) DO UPDATE SET value=excluded.value"
+  let insertSQL = "INSERT INTO config (name, value) VALUES (?, ?) ON CONFLICT(name) DO UPDATE SET value=excluded.value"
   execute conn (Query $ T.pack insertSQL) (name, value)
 
 -- |Gets salt to use for hashing.

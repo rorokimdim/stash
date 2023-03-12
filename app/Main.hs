@@ -1,14 +1,13 @@
 module Main where
 
-import Control.Monad (join, void, unless, when)
+import Control.Monad (join, unless, void, when)
 import Control.Monad.Trans (liftIO)
-import Data.List (sortBy, findIndex)
+import Data.List (findIndex, sortBy)
 import Data.Maybe (fromMaybe)
 import System.Directory (copyFileWithMetadata, doesDirectoryExist)
 import System.Exit (die)
 import System.FilePath.Posix (combine, takeBaseName, takeDirectory, takeFileName)
-import System.IO
-  (Handle, IOMode(ReadMode), hIsTerminalDevice, hClose, hFlush, openFile, stdin, stdout)
+import System.IO (Handle, IOMode(ReadMode), hClose, hFlush, hIsTerminalDevice, openFile, stdin, stdout)
 
 import qualified Brick.AttrMap as BA
 import qualified Brick.Main as BM
@@ -41,12 +40,12 @@ import qualified Text.Fuzzy as TF
 import qualified Text.PrettyPrint.ANSI.Leijen as PP
 import qualified Text.Tabl as Table
 
+import qualified BabashkaPod as BPod
 import qualified Cipher
 import qualified CommandParsers as C
 import qualified DB
 import qualified IOUtils
 import qualified TextTransform
-import qualified BabashkaPod as BPod
 import qualified Version
 
 import Types
@@ -59,18 +58,19 @@ data GenericEditOptions = GERenameKey | GEAddKey | GEAddChildKey | GEDeleteKey d
 data UIMode = BROWSE | BROWSE_EMPTY | BROWSE_HELP | GENERIC_EDIT GenericEditOptions | SORT deriving (Eq, Show)
 data ValidationResult = VRSuccess | VRIgnore | VRFailed T.Text
 
-data AppState = AppState {
-  _plainNodes :: [PlainNode],
-  _selectedChildKeys :: [PlainKey],
-  _selectPath :: [(ParentId, SelectedIndex)],
-  _currentPath :: [PlainKey],
-  _ekey :: EncryptionKey,
-  _keysList :: BWL.GenericList ResourceName Vec.Vector PlainKey,
-  _uiMode :: UIMode,
-  _sortPatternEditor :: BWE.Editor T.Text ResourceName,
-  _genericEditor :: BWE.Editor T.Text ResourceName,
-  _genericEditPrompt :: T.Text
-} deriving (Show)
+data AppState = AppState
+  { _plainNodes        :: [PlainNode]
+  , _selectedChildKeys :: [PlainKey]
+  , _selectPath        :: [(ParentId, SelectedIndex)]
+  , _currentPath       :: [PlainKey]
+  , _ekey              :: EncryptionKey
+  , _keysList          :: BWL.GenericList ResourceName Vec.Vector PlainKey
+  , _uiMode            :: UIMode
+  , _sortPatternEditor :: BWE.Editor T.Text ResourceName
+  , _genericEditor     :: BWE.Editor T.Text ResourceName
+  , _genericEditPrompt :: T.Text
+  }
+  deriving Show
 
 
 -- |Opens given value in an editor and returned the edited value.
@@ -107,10 +107,9 @@ buildBrickApp = do
     toColor "brightWhite"   = VA.brightWhite
     toColor _               = VA.cyan
 
-  selectedColor <- toColor <$> IOUtils.getEnvWithDefault "STASH_TUI_COLOR_SELECTED" "cyan"
-  currentPathColor <- toColor <$> IOUtils.getEnvWithDefault "STASH_TUI_COLOR_CURRENT_PATH" "white"
-  sortPatternTextColor <- toColor
-    <$> IOUtils.getEnvWithDefault "STASH_TUI_COLOR_SORT_PATTERN" "white"
+  selectedColor        <- toColor <$> IOUtils.getEnvWithDefault "STASH_TUI_COLOR_SELECTED" "cyan"
+  currentPathColor     <- toColor <$> IOUtils.getEnvWithDefault "STASH_TUI_COLOR_CURRENT_PATH" "white"
+  sortPatternTextColor <- toColor <$> IOUtils.getEnvWithDefault "STASH_TUI_COLOR_SORT_PATTERN" "white"
 
   return BM.App
     { appDraw         = draw
@@ -140,9 +139,7 @@ getEncryptionKey_ handle = do
     False
 
   valid <- DB.checkEncryptionKey ekey
-  if valid
-    then return ekey
-    else die $ "\n☠️  Encryption key is invalid for stash file at " <> dbPath <> "."
+  if valid then return ekey else die $ "\n☠️  Encryption key is invalid for stash file at " <> dbPath <> "."
 
 getEncryptionKeyWithConfirmation :: IO EncryptionKey
 getEncryptionKeyWithConfirmation = do
@@ -155,9 +152,7 @@ getEncryptionKeyWithConfirmation = do
   return ekey
 
 pathWidget :: AppState -> BT.Widget ResourceName
-pathWidget state = BWC.withAttr "currentPath" $ BWC.txtWrap $ T.append ">> " $ T.intercalate
-  " > "
-  (_currentPath state)
+pathWidget state = BWC.withAttr "currentPath" $ BWC.txtWrap $ T.append ">> " $ T.intercalate " > " (_currentPath state)
 
 keysList :: [PlainKey] -> BWL.GenericList ResourceName Vec.Vector PlainKey
 keysList keys = BWL.list "keys" (Vec.fromList keys) 1
@@ -176,8 +171,8 @@ inputWidget :: AppState -> BT.Widget ResourceName
 inputWidget s@AppState { _sortPatternEditor = editor, _uiMode = SORT } = BWC.hBox
   [BWC.txt "Sort pattern: ", BWE.renderEditor f True editor]
   where f xs = BWC.withAttr "sortPatternText" $ BWC.txt $ T.concat xs
-inputWidget s@AppState { _genericEditor = editor, _genericEditPrompt = prompt, _uiMode = GENERIC_EDIT _ }
-  = BWC.hBox [BWC.txt prompt, BWE.renderEditor f True editor]
+inputWidget s@AppState { _genericEditor = editor, _genericEditPrompt = prompt, _uiMode = GENERIC_EDIT _ } = BWC.hBox
+  [BWC.txt prompt, BWE.renderEditor f True editor]
   where f xs = BWC.withAttr "genericEditText" $ BWC.txt $ T.concat xs
 inputWidget _ = BWC.txt ""
 
@@ -269,8 +264,7 @@ handleArrowKey direction state = do
     , _keysList          = BWL.listMoveTo si $ keysList $ map __key plainNodes
     }
 
-handleSharedEvent
-  :: AppState -> BT.BrickEvent ResourceName e -> BT.EventM ResourceName (BT.Next AppState)
+handleSharedEvent :: AppState -> BT.BrickEvent ResourceName e -> BT.EventM ResourceName (BT.Next AppState)
 handleSharedEvent s event@(BT.VtyEvent e) = case e of
   V.EvKey V.KEsc        [] -> BM.halt s
   V.EvKey (V.KChar 'q') [] -> BM.halt s
@@ -296,9 +290,7 @@ editSelectedValue s = do
   let (selectedNode, pid, si) = getSelected s
   let key                     = __key selectedNode
   let value                   = __value selectedNode
-  let
-    ext = T.unpack $ if length splits > 1 then last splits else "txt"
-      where splits = T.splitOn "." key
+  let ext = T.unpack $ if length splits > 1 then last splits else "txt" where splits = T.splitOn "." key
   newValue <- edit ext value
   DB.updateNodeValue ekey (__id selectedNode) newValue
   buildState pid si s
@@ -329,26 +321,24 @@ validateGenericEditInput s@AppState { _uiMode = GENERIC_EDIT GERenameKey } = do
   let isConflictingKey k = Vec.elem k $ BWL.listElements $ _keysList s
   case newKey of
     x | x == T.empty || x == currentKey -> return VRIgnore
-    x | isConflictingKey x              -> return $ VRFailed $ T.concat
-      ["Name '", newKey, "' is taken. Try a different name for '", currentKey, "': "]
+    x | isConflictingKey x ->
+      return $ VRFailed $ T.concat ["Name '", newKey, "' is taken. Try a different name for '", currentKey, "': "]
     _ -> return VRSuccess
 validateGenericEditInput s@AppState { _uiMode = GENERIC_EDIT GEAddKey } = do
   let newKey = T.concat $ BWE.getEditContents $ _genericEditor s
   let isConflictingKey k = Vec.elem k $ BWL.listElements $ _keysList s
   case newKey of
-    x | x == T.empty -> return VRIgnore
-    x | isConflictingKey x ->
-      return $ VRFailed $ T.concat ["Name '", newKey, "' is taken. Try a different name: "]
-    _ -> return VRSuccess
+    x | x == T.empty       -> return VRIgnore
+    x | isConflictingKey x -> return $ VRFailed $ T.concat ["Name '", newKey, "' is taken. Try a different name: "]
+    _                      -> return VRSuccess
 validateGenericEditInput s@AppState { _uiMode = GENERIC_EDIT GEAddChildKey } = do
   let childKey          = T.concat $ BWE.getEditContents $ _genericEditor s
   let existingChildKeys = _selectedChildKeys s
   let isConflictingKey k = k `elem` existingChildKeys
   case childKey of
-    x | x == T.empty -> return VRIgnore
-    x | isConflictingKey x ->
-      return $ VRFailed $ T.concat ["Name '", childKey, "' is taken. Try a different name: "]
-    _ -> return VRSuccess
+    x | x == T.empty       -> return VRIgnore
+    x | isConflictingKey x -> return $ VRFailed $ T.concat ["Name '", childKey, "' is taken. Try a different name: "]
+    _                      -> return VRSuccess
 validateGenericEditInput s@AppState { _uiMode = GENERIC_EDIT GEDeleteKey } = do
   let response = T.concat $ BWE.getEditContents $ _genericEditor s
   if response == "yes" then return VRSuccess else return VRIgnore
@@ -423,11 +413,7 @@ deleteKey s@AppState { _uiMode = GENERIC_EDIT GEDeleteKey } = do
     _ -> return $ switchToBrowseMode s
 
 prepareForRenameKey :: AppState -> AppState
-prepareForRenameKey s = s
-  { _uiMode            = GENERIC_EDIT GERenameKey
-  , _genericEditPrompt = prompt
-  , _genericEditor     = editor
-  }
+prepareForRenameKey s = s { _uiMode = GENERIC_EDIT GERenameKey, _genericEditPrompt = prompt, _genericEditor = editor }
  where
   (selectedNode, _, _) = getSelected s
   k                    = __key selectedNode
@@ -435,11 +421,7 @@ prepareForRenameKey s = s
   editor               = BWE.editor "genericEditor" (Just 1) ""
 
 prepareForAddKey :: AppState -> AppState
-prepareForAddKey s = s
-  { _uiMode            = GENERIC_EDIT GEAddKey
-  , _genericEditPrompt = prompt
-  , _genericEditor     = editor
-  }
+prepareForAddKey s = s { _uiMode = GENERIC_EDIT GEAddKey, _genericEditPrompt = prompt, _genericEditor = editor }
  where
   prompt = "New key: "
   editor = BWE.editor "genericEditor" (Just 1) ""
@@ -455,11 +437,7 @@ prepareForAddChildKey s = s
   editor = BWE.editor "genericEditor" (Just 1) ""
 
 prepareForDeleteKey :: AppState -> AppState
-prepareForDeleteKey s = s
-  { _uiMode            = GENERIC_EDIT GEDeleteKey
-  , _genericEditPrompt = prompt
-  , _genericEditor     = editor
-  }
+prepareForDeleteKey s = s { _uiMode = GENERIC_EDIT GEDeleteKey, _genericEditPrompt = prompt, _genericEditor = editor }
  where
   prompt = "Are you sure you want to delete selected key? Type 'yes' to delete: "
   editor = BWE.editor "genericEditor" (Just 1) ""
@@ -532,16 +510,15 @@ handleEvent s@AppState { _uiMode = BROWSE } event@(BT.VtyEvent e) = case e of
   moveToIndex s si = do
     newState <- liftIO $ moveKeysList s si
     BM.continue newState
-handleEvent s@AppState { _uiMode = SORT, _sortPatternEditor = editor } event@(BT.VtyEvent e) =
+handleEvent s@AppState { _uiMode = SORT, _sortPatternEditor = editor } event@(BT.VtyEvent e) = case e of
+  V.EvKey V.KEsc   [] -> BM.continue $ switchToBrowseMode s
+  V.EvKey V.KEnter [] -> BM.continue $ switchToBrowseMode s
+  _                   -> do
+    editor   <- BWE.handleEditorEvent e editor
+    newState <- liftIO $ moveKeysList s { _sortPatternEditor = editor } 0
+    BM.continue newState
+handleEvent s@AppState { _uiMode = GENERIC_EDIT GERenameKey, _genericEditor = editor } event@(BT.VtyEvent e) =
   case e of
-    V.EvKey V.KEsc   [] -> BM.continue $ switchToBrowseMode s
-    V.EvKey V.KEnter [] -> BM.continue $ switchToBrowseMode s
-    _                   -> do
-      editor   <- BWE.handleEditorEvent e editor
-      newState <- liftIO $ moveKeysList s { _sortPatternEditor = editor } 0
-      BM.continue newState
-handleEvent s@AppState { _uiMode = GENERIC_EDIT GERenameKey, _genericEditor = editor } event@(BT.VtyEvent e)
-  = case e of
     V.EvKey V.KEsc   [] -> BM.continue $ switchToBrowseMode s
     V.EvKey V.KEnter [] -> do
       newState <- liftIO $ renameSelectedKey s
@@ -549,17 +526,16 @@ handleEvent s@AppState { _uiMode = GENERIC_EDIT GERenameKey, _genericEditor = ed
     _ -> do
       editor <- BWE.handleEditorEvent e editor
       BM.continue s { _genericEditor = editor }
-handleEvent s@AppState { _uiMode = GENERIC_EDIT GEAddKey, _genericEditor = editor } event@(BT.VtyEvent e)
-  = case e of
-    V.EvKey V.KEsc   [] -> BM.continue $ switchToBrowseMode s
-    V.EvKey V.KEnter [] -> do
-      newState <- liftIO $ addKey s
-      BM.continue newState
-    _ -> do
-      editor <- BWE.handleEditorEvent e editor
-      BM.continue s { _genericEditor = editor }
-handleEvent s@AppState { _uiMode = GENERIC_EDIT GEAddChildKey, _genericEditor = editor } event@(BT.VtyEvent e)
-  = case e of
+handleEvent s@AppState { _uiMode = GENERIC_EDIT GEAddKey, _genericEditor = editor } event@(BT.VtyEvent e) = case e of
+  V.EvKey V.KEsc   [] -> BM.continue $ switchToBrowseMode s
+  V.EvKey V.KEnter [] -> do
+    newState <- liftIO $ addKey s
+    BM.continue newState
+  _ -> do
+    editor <- BWE.handleEditorEvent e editor
+    BM.continue s { _genericEditor = editor }
+handleEvent s@AppState { _uiMode = GENERIC_EDIT GEAddChildKey, _genericEditor = editor } event@(BT.VtyEvent e) =
+  case e of
     V.EvKey V.KEsc   [] -> BM.continue $ switchToBrowseMode s
     V.EvKey V.KEnter [] -> do
       newState <- liftIO $ addChildKey s
@@ -567,8 +543,8 @@ handleEvent s@AppState { _uiMode = GENERIC_EDIT GEAddChildKey, _genericEditor = 
     _ -> do
       editor <- BWE.handleEditorEvent e editor
       BM.continue s { _genericEditor = editor }
-handleEvent s@AppState { _uiMode = GENERIC_EDIT GEDeleteKey, _genericEditor = editor } event@(BT.VtyEvent e)
-  = case e of
+handleEvent s@AppState { _uiMode = GENERIC_EDIT GEDeleteKey, _genericEditor = editor } event@(BT.VtyEvent e) =
+  case e of
     V.EvKey V.KEsc   [] -> BM.continue $ switchToBrowseMode s
     V.EvKey V.KEnter [] -> do
       newState <- liftIO $ deleteKey s
@@ -578,8 +554,7 @@ handleEvent s@AppState { _uiMode = GENERIC_EDIT GEDeleteKey, _genericEditor = ed
       BM.continue s { _genericEditor = editor }
 
 switchToBrowseMode :: AppState -> AppState
-switchToBrowseMode s = s { _uiMode = mode }
-  where mode = if (null . _plainNodes) s then BROWSE_EMPTY else BROWSE
+switchToBrowseMode s = s { _uiMode = mode } where mode = if (null . _plainNodes) s then BROWSE_EMPTY else BROWSE
 
 moveKeysList :: AppState -> SelectedIndex -> IO AppState
 moveKeysList s si = do
@@ -720,8 +695,7 @@ deleteInteractively (n : ns) True = do
   let nid = __id n
   ekey <- getEncryptionKey
   keys <- DB.getPath ekey nid
-  TIO.putStrLn $ T.concat
-    ["The following item was marked for deletion:\n> ", T.intercalate " > " keys, "\n", __value n]
+  TIO.putStrLn $ T.concat ["The following item was marked for deletion:\n> ", T.intercalate " > " keys, "\n", __value n]
   userResponse <- IOUtils.readUserResponseYesNo "Are you sure you want to delete?"
   case userResponse of
     IOUtils.URYes -> do
@@ -858,9 +832,8 @@ backup = do
 
   let
     destinationDirectory = takeDirectory source
-    destinationFileName =
-      "backup-" <> takeBaseName source <> "-" <> filter (/= ' ') (show userTime) <> ".stash"
-    destination = combine destinationDirectory destinationFileName
+    destinationFileName  = "backup-" <> takeBaseName source <> "-" <> filter (/= ' ') (show userTime) <> ".stash"
+    destination          = combine destinationDirectory destinationFileName
 
   copyFileWithMetadata source destination
   putStrLn $ "Backed up " <> source <> " to " <> destination
@@ -897,13 +870,7 @@ initialize path createIfMissing = do
     DB.NonExistentDBFile -> do
       unless createIfMissing $ die $ "☠️  stash file " <> dbPath <> " does not exist."
       isDirectory <- doesDirectoryExist dbPath
-      when isDirectory
-        $  die
-        $  "☠️  "
-        <> dbPath
-        <> " is a directory. Did you mean "
-        <> dbPath
-        <> ".stash?"
+      when isDirectory $ die $ "☠️  " <> dbPath <> " is a directory. Did you mean " <> dbPath <> ".stash?"
       TIO.putStrLn $ "Creating new stash file " <> T.pack dbPath <> "..."
       ekey <- getEncryptionKeyWithConfirmation
       IOUtils.createMissingDirectories dbPath

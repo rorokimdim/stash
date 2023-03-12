@@ -2,7 +2,7 @@ module BabashkaPod where
 
 import Control.Exception (SomeException, evaluate, try)
 import Control.Monad (unless)
-import Data.Aeson ((.:), (.:?), FromJSON, decode, encode, parseJSON, withObject)
+import Data.Aeson ((.:), (.:?), (.=), FromJSON, ToJSON, decode, encode, object, parseJSON, toJSON, withObject)
 import Data.Maybe (isNothing)
 import System.IO (hFlush, isEOF, stdout)
 
@@ -11,6 +11,7 @@ import qualified Data.ByteString.Lazy as BSLazy
 import qualified Data.ByteString.Lazy.Char8 as C
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as T
+import qualified Data.Text.Lazy.Encoding as LE
 
 import qualified DB
 import qualified IOUtils
@@ -18,18 +19,18 @@ import qualified Version
 
 import Types
 
-data PodState = PodState {
-  _ekey :: EncryptionKey,
-  _stashPath :: FilePath,
-  _authenticated :: Bool,
-  _shutdown :: Bool
-}
+data PodState = PodState
+  { _ekey          :: EncryptionKey
+  , _stashPath     :: FilePath
+  , _authenticated :: Bool
+  , _shutdown      :: Bool
+  }
 
-data InitializationArg = InitializationArg {
-  __ekey :: EncryptionKey,
-  __stashPath :: FilePath,
-  __createStashIfMissing :: Bool
-}
+data InitializationArg = InitializationArg
+  { __ekey                 :: EncryptionKey
+  , __stashPath            :: FilePath
+  , __createStashIfMissing :: Bool
+  }
 
 instance FromJSON InitializationArg where
   parseJSON = withObject "InitializationArg" $ \obj -> do
@@ -42,11 +43,18 @@ instance FromJSON InitializationArg where
       , __createStashIfMissing = Just True == createStashIfMissing
       }
 
+newtype InvalidArgs = InvalidArgs {_args :: BSLazy.ByteString}
+instance ToJSON InvalidArgs where
+  toJSON InvalidArgs { _args = args } = object ["args" .= LE.decodeUtf8 args]
+
 type PodRequestId = BSLazy.ByteString
 type InvokeVar = BSLazy.ByteString
 type Args = BSLazy.ByteString
 
 data InvokeRequest = InvokeRequest InvokeVar PodRequestId Args
+
+constructBencodeInvalidArgs :: Args -> BE.BEncode
+constructBencodeInvalidArgs args = BE.BString $ encode $ InvalidArgs args
 
 continueState :: PodState -> BE.BEncode -> IO (PodState, BE.BEncode)
 continueState s b = return (s, b)
@@ -54,7 +62,7 @@ continueState s b = return (s, b)
 handleInitRequest :: PodState -> PodRequestId -> Args -> IO (PodState, BE.BEncode)
 handleInitRequest s rid args = do
   let
-    invalid    = constructBencodeError rid "Invalid initialization args" (BE.BString args)
+    invalid    = constructBencodeError rid "Invalid initialization args" $ constructBencodeInvalidArgs args
     parsedArgs = decode args :: Maybe [InitializationArg]
 
   case parsedArgs of
@@ -80,30 +88,23 @@ handleInitRequest s rid args = do
                 continueState s { _ekey = ekey, _stashPath = stashPath, _authenticated = True }
                   $ BE.BDict
                   $ Map.fromList
-                      [ ("id"    , BE.BString rid)
-                      , ("value" , BE.BString "true")
-                      , ("status", BE.BList [BE.BString "done"])
-                      ]
+                      [("id", BE.BString rid), ("value", BE.BString "true"), ("status", BE.BList [BE.BString "done"])]
               else continueState s $ constructBencodeError
                 rid
-                ("stash file "
+                (  "stash file "
                 <> C.pack stashPath
                 <> " does not exist. Pass in create-stash-if-missing=true to create it. Or use `stash create`."
                 )
                 (BE.BString "false")
-          DB.InvalidDBFile -> continueState s $ constructBencodeError
-            rid
-            ("Invalid stash file " <> C.pack stashPath)
-            (BE.BString "false")
+          DB.InvalidDBFile ->
+            continueState s $ constructBencodeError rid ("Invalid stash file " <> C.pack stashPath) (BE.BString "false")
           DB.ValidDBFile -> do
             isValid <- DB.checkEncryptionKey ekey
-            continueState s { _ekey = ekey, _stashPath = stashPath, _authenticated = isValid }
-              $ BE.BDict
-              $ Map.fromList
-                  [ ("id"    , BE.BString rid)
-                  , ("value", BE.BString (if isValid then "true" else "false"))
-                  , ("status", BE.BList [BE.BString "done"])
-                  ]
+            continueState s { _ekey = ekey, _stashPath = stashPath, _authenticated = isValid } $ BE.BDict $ Map.fromList
+              [ ("id"    , BE.BString rid)
+              , ("value", BE.BString (if isValid then "true" else "false"))
+              , ("status", BE.BList [BE.BString "done"])
+              ]
 
 handleNodesRequest :: PodState -> PodRequestId -> Args -> IO (PodState, BE.BEncode)
 handleNodesRequest s rid args = do
@@ -117,10 +118,7 @@ handleNodesRequest s rid args = do
     _          -> return []
 
   continueState s $ BE.BDict $ Map.fromList
-    [ ("id"    , BE.BString rid)
-    , ("value" , BE.BString $ encode plainNodes)
-    , ("status", BE.BList [BE.BString "done"])
-    ]
+    [("id", BE.BString rid), ("value", BE.BString $ encode plainNodes), ("status", BE.BList [BE.BString "done"])]
 
 handleNodeVersionsRequest :: PodState -> PodRequestId -> Args -> IO (PodState, BE.BEncode)
 handleNodeVersionsRequest s rid args = do
@@ -133,10 +131,7 @@ handleNodeVersionsRequest s rid args = do
     Just [nid] -> do
       plainNodes <- DB.getAllPlainNodeVersions ekey nid
       continueState s $ BE.BDict $ Map.fromList
-        [ ("id"    , BE.BString rid)
-        , ("value" , BE.BString $ encode plainNodes)
-        , ("status", BE.BList [BE.BString "done"])
-        ]
+        [("id", BE.BString rid), ("value", BE.BString $ encode plainNodes), ("status", BE.BList [BE.BString "done"])]
     _ -> return (s, invalid)
 
 handleTreeRequest :: PodState -> PodRequestId -> Args -> IO (PodState, BE.BEncode)
@@ -150,10 +145,7 @@ handleTreeRequest s rid args = do
 
   tree <- DB.getPlainTree ekey pid
   continueState s $ BE.BDict $ Map.fromList
-    [ ("id"    , BE.BString rid)
-    , ("value" , BE.BString $ encode tree)
-    , ("status", BE.BList [BE.BString "done"])
-    ]
+    [("id", BE.BString rid), ("value", BE.BString $ encode tree), ("status", BE.BList [BE.BString "done"])]
 
 handleKeysRequest :: PodState -> PodRequestId -> Args -> IO (PodState, BE.BEncode)
 handleKeysRequest s rid args = do
@@ -167,16 +159,13 @@ handleKeysRequest s rid args = do
     Just pids -> do
       kss <- mapM (DB.getPlainKeys ekey) pids
       continueState s $ BE.BDict $ Map.fromList
-        [ ("id"    , BE.BString rid)
-        , ("value" , BE.BString $ encode $ concat kss)
-        , ("status", BE.BList [BE.BString "done"])
-        ]
+        [("id", BE.BString rid), ("value", BE.BString $ encode $ concat kss), ("status", BE.BList [BE.BString "done"])]
 
 handleGetRequest :: PodState -> PodRequestId -> Args -> IO (PodState, BE.BEncode)
 handleGetRequest s rid args = do
   let
     ekey       = _ekey s
-    invalid    = constructBencodeError rid "Invalid keys" (BE.BString args)
+    invalid    = constructBencodeError rid "Invalid keys" $ constructBencodeInvalidArgs args
     parsedArgs = decode args :: Maybe [PlainKey]
 
   case parsedArgs of
@@ -185,19 +174,14 @@ handleGetRequest s rid args = do
     Just ks -> do
       value <- DB.retrieve ekey ks
       continueState s $ BE.BDict $ Map.fromList
-        [ ("id"    , BE.BString rid)
-        , ("value" , BE.BString $ encode value)
-        , ("status", BE.BList [BE.BString "done"])
-        ]
+        [("id", BE.BString rid), ("value", BE.BString $ encode value), ("status", BE.BList [BE.BString "done"])]
 
 handleSetRequest :: PodState -> PodRequestId -> Args -> IO (PodState, BE.BEncode)
 handleSetRequest s rid args = do
   let
     ekey    = _ekey s
-    invalid = constructBencodeError
-      rid
-      "Invalid input; must be list of keys followed by value"
-      (BE.BString args)
+    invalid = constructBencodeError rid "Invalid input; must be list of keys followed by value"
+      $ constructBencodeInvalidArgs args
     parsedArgs = decode args :: Maybe [T.Text]
 
   case parsedArgs of
@@ -207,17 +191,13 @@ handleSetRequest s rid args = do
     Just xs  -> do
       value <- DB.save ekey (init xs) (last xs)
       continueState s $ BE.BDict $ Map.fromList
-        [ ("id"    , BE.BString rid)
-        , ("value" , BE.BString $ encode value)
-        , ("status", BE.BList [BE.BString "done"])
-        ]
+        [("id", BE.BString rid), ("value", BE.BString $ encode value), ("status", BE.BList [BE.BString "done"])]
 
 handleAddRequest :: PodState -> PodRequestId -> Args -> IO (PodState, BE.BEncode)
 handleAddRequest s rid args = do
   let
-    ekey = _ekey s
-    invalid =
-      constructBencodeError rid "Invalid input; must be parent-id, key, value" (BE.BString "null")
+    ekey       = _ekey s
+    invalid    = constructBencodeError rid "Invalid input; must be parent-id, key, value" (BE.BString "null")
     parsedArgs = decode args :: Maybe (ParentId, PlainKey, PlainValue)
 
   case parsedArgs of
@@ -228,18 +208,14 @@ handleAddRequest s rid args = do
         then do
           nid <- DB.addNode ekey pid pkey pvalue
           continueState s $ BE.BDict $ Map.fromList
-            [ ("id"    , BE.BString rid)
-            , ("value" , BE.BString $ encode nid)
-            , ("status", BE.BList [BE.BString "done"])
-            ]
+            [("id", BE.BString rid), ("value", BE.BString $ encode nid), ("status", BE.BList [BE.BString "done"])]
         else continueState s $ constructBencodeError rid "Key already exists" (BE.BString "null")
 
 handleRenameRequest :: PodState -> PodRequestId -> Args -> IO (PodState, BE.BEncode)
 handleRenameRequest s rid args = do
   let
-    ekey = _ekey s
-    invalid =
-      constructBencodeError rid "Invalid input; must be node-id, new-name" (BE.BString "null")
+    ekey       = _ekey s
+    invalid    = constructBencodeError rid "Invalid input; must be node-id, new-name" (BE.BString "null")
     parsedArgs = decode args :: Maybe (NodeId, PlainKey)
 
   case parsedArgs of
@@ -248,18 +224,14 @@ handleRenameRequest s rid args = do
       result <- DB.renameNode ekey nid pkey
       if result
         then continueState s $ BE.BDict $ Map.fromList
-          [ ("id"    , BE.BString rid)
-          , ("value" , BE.BString "true")
-          , ("status", BE.BList [BE.BString "done"])
-          ]
-        else continueState s
-          $ constructBencodeError rid "Invalid new name. Name already exists." (BE.BString "null")
+          [("id", BE.BString rid), ("value", BE.BString "true"), ("status", BE.BList [BE.BString "done"])]
+        else continueState s $ constructBencodeError rid "Invalid new name. Name already exists." (BE.BString "null")
 
 handleUpdateRequest :: PodState -> PodRequestId -> Args -> IO (PodState, BE.BEncode)
 handleUpdateRequest s rid args = do
   let
-    ekey = _ekey s
-    invalid = constructBencodeError rid "Invalid input; must be node-id, value" (BE.BString "null")
+    ekey       = _ekey s
+    invalid    = constructBencodeError rid "Invalid input; must be node-id, value" (BE.BString "null")
     parsedArgs = decode args :: Maybe (NodeId, PlainValue)
 
   case parsedArgs of
@@ -267,10 +239,7 @@ handleUpdateRequest s rid args = do
     Just (nid, pvalue) -> do
       DB.updateNodeValue ekey nid pvalue
       continueState s $ BE.BDict $ Map.fromList
-        [ ("id"    , BE.BString rid)
-        , ("value" , BE.BString "true")
-        , ("status", BE.BList [BE.BString "done"])
-        ]
+        [("id", BE.BString rid), ("value", BE.BString "true"), ("status", BE.BList [BE.BString "done"])]
 
 handleDeleteRequest :: PodState -> PodRequestId -> Args -> IO (PodState, BE.BEncode)
 handleDeleteRequest s rid args = do
@@ -285,10 +254,7 @@ handleDeleteRequest s rid args = do
       expandedIdss <- mapM DB.getIds nids
       DB.deleteNodes $ concat expandedIdss
       continueState s $ BE.BDict $ Map.fromList
-        [ ("id"    , BE.BString rid)
-        , ("value" , BE.BString "true")
-        , ("status", BE.BList [BE.BString "done"])
-        ]
+        [("id", BE.BString rid), ("value", BE.BString "true"), ("status", BE.BList [BE.BString "done"])]
 
 handleVersionRequest :: PodState -> PodRequestId -> Args -> IO (PodState, BE.BEncode)
 handleVersionRequest s rid args = do
@@ -299,43 +265,29 @@ handleVersionRequest s rid args = do
     ]
 
 handleInvokeRequest :: PodState -> InvokeRequest -> IO (PodState, BE.BEncode)
-handleInvokeRequest s (InvokeRequest "pod.rorokimdim.stash/init" rid args) =
-  handleInitRequest s rid args
+handleInvokeRequest s (InvokeRequest "pod.rorokimdim.stash/init" rid args) = handleInitRequest s rid args
 handleInvokeRequest s (InvokeRequest _ rid args) | (not . _authenticated) s =
-  continueState s $ constructBencodeError
-    rid
-    "Not Authenticated. A call to `init` must succeed first."
-    (BE.BString args)
-handleInvokeRequest s (InvokeRequest "pod.rorokimdim.stash/nodes" rid args) =
-  handleNodesRequest s rid args
+  continueState s
+    $ constructBencodeError rid "Not Authenticated. A call to `init` must succeed first."
+    $ constructBencodeInvalidArgs args
+handleInvokeRequest s (InvokeRequest "pod.rorokimdim.stash/nodes" rid args) = handleNodesRequest s rid args
 handleInvokeRequest s (InvokeRequest "pod.rorokimdim.stash/node-versions" rid args) =
   handleNodeVersionsRequest s rid args
-handleInvokeRequest s (InvokeRequest "pod.rorokimdim.stash/tree" rid args) =
-  handleTreeRequest s rid args
-handleInvokeRequest s (InvokeRequest "pod.rorokimdim.stash/get" rid args) =
-  handleGetRequest s rid args
-handleInvokeRequest s (InvokeRequest "pod.rorokimdim.stash/set" rid args) =
-  handleSetRequest s rid args
-handleInvokeRequest s (InvokeRequest "pod.rorokimdim.stash/keys" rid args) =
-  handleKeysRequest s rid args
-handleInvokeRequest s (InvokeRequest "pod.rorokimdim.stash/add" rid args) =
-  handleAddRequest s rid args
-handleInvokeRequest s (InvokeRequest "pod.rorokimdim.stash/rename" rid args) =
-  handleRenameRequest s rid args
-handleInvokeRequest s (InvokeRequest "pod.rorokimdim.stash/update" rid args) =
-  handleUpdateRequest s rid args
-handleInvokeRequest s (InvokeRequest "pod.rorokimdim.stash/delete" rid args) =
-  handleDeleteRequest s rid args
-handleInvokeRequest s (InvokeRequest "pod.rorokimdim.stash/version" rid args) =
-  handleVersionRequest s rid args
+handleInvokeRequest s (InvokeRequest "pod.rorokimdim.stash/tree"    rid args) = handleTreeRequest s rid args
+handleInvokeRequest s (InvokeRequest "pod.rorokimdim.stash/get"     rid args) = handleGetRequest s rid args
+handleInvokeRequest s (InvokeRequest "pod.rorokimdim.stash/set"     rid args) = handleSetRequest s rid args
+handleInvokeRequest s (InvokeRequest "pod.rorokimdim.stash/keys"    rid args) = handleKeysRequest s rid args
+handleInvokeRequest s (InvokeRequest "pod.rorokimdim.stash/add"     rid args) = handleAddRequest s rid args
+handleInvokeRequest s (InvokeRequest "pod.rorokimdim.stash/rename"  rid args) = handleRenameRequest s rid args
+handleInvokeRequest s (InvokeRequest "pod.rorokimdim.stash/update"  rid args) = handleUpdateRequest s rid args
+handleInvokeRequest s (InvokeRequest "pod.rorokimdim.stash/delete"  rid args) = handleDeleteRequest s rid args
+handleInvokeRequest s (InvokeRequest "pod.rorokimdim.stash/version" rid args) = handleVersionRequest s rid args
 handleInvokeRequest s (InvokeRequest var rid _) =
   continueState s $ constructBencodeError rid "Invalid invoke request" (BE.BString var)
 
 handleShutdownRequest :: PodState -> PodRequestId -> IO (PodState, BE.BEncode)
 handleShutdownRequest s rid = do
-  let
-    result =
-      BE.BDict $ Map.fromList [("id", BE.BString rid), ("status", BE.BList [BE.BString "done"])]
+  let result = BE.BDict $ Map.fromList [("id", BE.BString rid), ("status", BE.BList [BE.BString "done"])]
   return (s { _shutdown = True }, result)
 
 handleRequest :: PodState -> BE.BEncode -> IO (PodState, BE.BEncode)

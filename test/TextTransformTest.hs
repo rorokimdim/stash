@@ -15,8 +15,7 @@ tests :: TestTree
 tests = testGroup "TextTransform Tests" [unitTests]
 
 unitTests :: TestTree
-unitTests =
-  testGroup "Unit Tests" [unitTestsForTextFormat OrgText, unitTestsForTextFormat MarkdownText]
+unitTests = testGroup "Unit Tests" [unitTestsForTextFormat OrgText, unitTestsForTextFormat MarkdownText]
 
 unitTestsForTextFormat :: TextFormat -> TestTree
 unitTestsForTextFormat format = testGroup
@@ -24,31 +23,15 @@ unitTestsForTextFormat format = testGroup
   [ testCase ("Tests for toTitle " ++ show format) $ do
     assertBool "empty string, depth 0" $ TT.toTitle format 0 "" == ""
     assertBool "empty string, depth 1" $ TT.toTitle format 1 "" == T.replicate 1 fchar <> " "
-    assertBool "some string, depth 0"
-      $  TT.toTitle format 0 "some string"
-      == T.replicate 0 fchar
-      <> "some string"
-    assertBool "some string, depth 1"
-      $  TT.toTitle format 1 "some string"
-      == T.replicate 1 fchar
-      <> " some string"
-    assertBool "some string, depth 2"
-      $  TT.toTitle format 2 "some string"
-      == T.replicate 2 fchar
-      <> " some string"
-    assertBool "some string, depth 5"
-      $  TT.toTitle format 5 "some string"
-      == T.replicate 5 fchar
-      <> " some string"
+    assertBool "some string, depth 0" $ TT.toTitle format 0 "some string" == T.replicate 0 fchar <> "some string"
+    assertBool "some string, depth 1" $ TT.toTitle format 1 "some string" == T.replicate 1 fchar <> " some string"
+    assertBool "some string, depth 2" $ TT.toTitle format 2 "some string" == T.replicate 2 fchar <> " some string"
+    assertBool "some string, depth 5" $ TT.toTitle format 5 "some string" == T.replicate 5 fchar <> " some string"
   , testCase ("Tests for untitleText " ++ show format) $ do
     assertBool "empty string" $ TT.untitleText format "" == ""
     assertBool "some string" $ TT.untitleText format "some string" == "some string"
-    assertBool "some string, depth 2"
-      $  TT.untitleText format (T.replicate 2 fchar <> " some string")
-      == "some string"
-    assertBool "some string, depth 5"
-      $  TT.untitleText format (T.replicate 5 fchar <> " some string")
-      == "some string"
+    assertBool "some string, depth 2" $ TT.untitleText format (T.replicate 2 fchar <> " some string") == "some string"
+    assertBool "some string, depth 5" $ TT.untitleText format (T.replicate 5 fchar <> " some string") == "some string"
   , testCase "Tests for depth OrgText" $ do
     assertBool "empty string" $ TT.depth format "" == 0
     assertBool "some string" $ TT.depth format "some string" == 0

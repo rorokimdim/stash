@@ -29,7 +29,6 @@ module DB
   , updateNodeValue
   , validateDBPath
   , DBPathValidationResult(..)
-  )
-where
+  ) where
 
 import DB.Internal

@@ -3,15 +3,14 @@
 --
 module Main where
 
-import Control.Monad (join, void, unless, when)
+import Control.Monad (join, unless, void, when)
 import Control.Monad.Trans (liftIO)
-import Data.List (sortBy, findIndex)
+import Data.List (findIndex, sortBy)
 import Data.Maybe (fromMaybe)
 import System.Directory (copyFileWithMetadata, doesDirectoryExist)
 import System.Exit (die)
 import System.FilePath.Posix (combine, takeBaseName, takeDirectory, takeFileName)
-import System.IO
-  (Handle, IOMode(ReadMode), hIsTerminalDevice, hClose, hFlush, openFile, stdin, stdout)
+import System.IO (Handle, IOMode(ReadMode), hClose, hFlush, hIsTerminalDevice, openFile, stdin, stdout)
 
 import qualified Control.Logging as L
 import qualified Data.Aeson.Encode.Pretty as AesonPretty
@@ -30,12 +29,12 @@ import qualified Text.Fuzzy as TF
 import qualified Text.PrettyPrint.ANSI.Leijen as PP
 import qualified Text.Tabl as Table
 
+import qualified BabashkaPod as BPod
 import qualified Cipher
 import qualified CommandParsers as C
 import qualified DB
 import qualified IOUtils
 import qualified TextTransform
-import qualified BabashkaPod as BPod
 import qualified Version
 
 import Types
@@ -55,9 +54,7 @@ getEncryptionKey_ handle = do
     False
 
   valid <- DB.checkEncryptionKey ekey
-  if valid
-    then return ekey
-    else die $ "\n☠️  Encryption key is invalid for stash file at " <> dbPath <> "."
+  if valid then return ekey else die $ "\n☠️  Encryption key is invalid for stash file at " <> dbPath <> "."
 
 getEncryptionKeyWithConfirmation :: IO EncryptionKey
 getEncryptionKeyWithConfirmation = do
@@ -115,9 +112,8 @@ backup = do
 
   let
     destinationDirectory = takeDirectory source
-    destinationFileName =
-      "backup-" <> takeBaseName source <> "-" <> filter (/= ' ') (show userTime) <> ".stash"
-    destination = combine destinationDirectory destinationFileName
+    destinationFileName  = "backup-" <> takeBaseName source <> "-" <> filter (/= ' ') (show userTime) <> ".stash"
+    destination          = combine destinationDirectory destinationFileName
 
   copyFileWithMetadata source destination
   putStrLn $ "Backed up " <> source <> " to " <> destination
@@ -197,13 +193,7 @@ initialize path createIfMissing = do
     DB.NonExistentDBFile -> do
       unless createIfMissing $ die $ "☠️  stash file " <> dbPath <> " does not exist."
       isDirectory <- doesDirectoryExist dbPath
-      when isDirectory
-        $  die
-        $  "☠️  "
-        <> dbPath
-        <> " is a directory. Did you mean "
-        <> dbPath
-        <> ".stash?"
+      when isDirectory $ die $ "☠️  " <> dbPath <> " is a directory. Did you mean " <> dbPath <> ".stash?"
       TIO.putStrLn $ "Creating new stash file " <> T.pack dbPath <> "..."
       ekey <- getEncryptionKeyWithConfirmation
       IOUtils.createMissingDirectories dbPath

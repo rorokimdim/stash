@@ -5,8 +5,7 @@ module TestUtility
   , randomTitle
   , randomText
   , randomBody
-  )
-where
+  ) where
 
 import Control.Monad (replicateM)
 import Data.Time (getCurrentTime)

@@ -4,12 +4,11 @@ module Cipher
   , generateHashSalt
   , hash
   , maxEncryptionKeyLength
-  )
-where
+  ) where
 
 import Control.Monad (unless)
 
-import qualified Crypto.Data.Padding as Padding (pad, Format(..))
+import qualified Crypto.Data.Padding as Padding (Format(..), pad)
 import qualified Crypto.Simple.CTR as C
 import qualified Data.ByteString.Base64 as Base64
 import qualified Data.ByteString.Char8 as Char8
@@ -53,8 +52,7 @@ decrypt key message = do
 -- |Computes hash of a value using given salt.
 -- Use generateHashSalt to get a good random salt.
 hash :: HashSalt -> T.Text -> T.Text
-hash salt value =
-  T.pack $ SHA.showDigest $ SHA.sha512 $ LBS.fromStrict $ Encoding.encodeUtf8 $ T.append salt value
+hash salt value = T.pack $ SHA.showDigest $ SHA.sha512 $ LBS.fromStrict $ Encoding.encodeUtf8 $ T.append salt value
 
 -- |Generates a random salt to be used for hashing values.
 generateHashSalt :: IO HashSalt

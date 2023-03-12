@@ -20,10 +20,7 @@ unitTests = testGroup
   [ testCase "Tests for randomPlainNodes" $ do
     let (order, depth) = (2, 9)
     pnodes <- TU.randomPlainNodes 2 9
-    assertEqual
-      "Number of nodes should be order ^ (depth + 1) - 1"
-      (order ^ (depth + 1) - 1)
-      (length pnodes)
+    assertEqual "Number of nodes should be order ^ (depth + 1) - 1" (order ^ (depth + 1) - 1) (length pnodes)
   , unitTestsForTextFormat OrgText
   , unitTestsForTextFormat MarkdownText
   ]

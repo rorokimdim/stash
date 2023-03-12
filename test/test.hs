@@ -10,5 +10,4 @@ main :: IO ()
 main = defaultMain tests
 
 tests :: TestTree
-tests =
-  testGroup "Tests" [CipherTest.tests, DBTest.tests, TextTransformTest.tests, TestUtilityTest.tests]
+tests = testGroup "Tests" [CipherTest.tests, DBTest.tests, TextTransformTest.tests, TestUtilityTest.tests]

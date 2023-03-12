@@ -4,13 +4,11 @@ module CommandParsers
   , DumpFormat(..)
   , ImportFormat(..)
   , commands
-  )
-where
+  ) where
 
 import Data.List (isPrefixOf, isSuffixOf)
 import Data.String (IsString)
-import System.FilePath.Posix
-  (addTrailingPathSeparator, combine, hasTrailingPathSeparator, takeDirectory, takeFileName)
+import System.FilePath.Posix (addTrailingPathSeparator, combine, hasTrailingPathSeparator, takeDirectory, takeFileName)
 
 import qualified Options.Applicative as O
 import qualified System.Directory as Directory
@@ -112,16 +110,12 @@ stashFilePathComplete prefix = do
     simplifyPath xs = xs
 
   normalizedDirectoryPath <- IOUtils.normalizePath directoryPath
-  directoryExists <- Directory.doesDirectoryExist normalizedDirectoryPath
-  paths <- if directoryExists then Directory.listDirectory normalizedDirectoryPath else return []
+  directoryExists         <- Directory.doesDirectoryExist normalizedDirectoryPath
+  paths                   <- if directoryExists then Directory.listDirectory normalizedDirectoryPath else return []
 
   let
     filteredPaths =
-      [ simplifyPath (combine directoryPath p)
-      | p <- paths
-      , ".stash" `isSuffixOf` p
-      , namePrefix `isPrefixOf` p
-      ]
+      [ simplifyPath (combine directoryPath p) | p <- paths, ".stash" `isSuffixOf` p, namePrefix `isPrefixOf` p ]
   if null filteredPaths && not (hasTrailingPathSeparator prefix) && directoryExists
     then stashFilePathComplete (addTrailingPathSeparator prefix)
     else return filteredPaths
@@ -129,10 +123,8 @@ stashFilePathComplete prefix = do
 
 stashFilePathArgument :: IsString s => O.Parser s
 stashFilePathArgument = O.strArgument
-  (  O.metavar "FILE"
-  <> O.action "directory"
-  <> O.completer (O.mkCompleter stashFilePathComplete)
-  <> O.help "Path to stash file"
+  (O.metavar "FILE" <> O.action "directory" <> O.completer (O.mkCompleter stashFilePathComplete) <> O.help
+    "Path to stash file"
   )
 
 backupCommandParser :: O.Parser Command
@@ -146,8 +138,7 @@ versionCommandParser = pure VersionCommand
 
 type CommandAlias = String
 type CommandDescription = String
-buildParser
-  :: [([CommandAlias], O.Parser Command, CommandDescription)] -> [O.Mod O.CommandFields Command]
+buildParser :: [([CommandAlias], O.Parser Command, CommandDescription)] -> [O.Mod O.CommandFields Command]
 buildParser xs = concat $ do
   (aliases, parser, description) <- xs
   let

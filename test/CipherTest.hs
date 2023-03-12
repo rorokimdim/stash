@@ -18,9 +18,8 @@ tests = testGroup "Cipher Tests" [quickCheckTests, unitTests]
 quickCheckTests :: TestTree
 quickCheckTests = testGroup
   "QuickCheck Tests"
-  [ QC.testProperty "Encrypted value decrypts to original value"
-  $ QC.withMaxSuccess 200
-  $ \ekey value -> QC.ioProperty $ do
+  [ QC.testProperty "Encrypted value decrypts to original value" $ QC.withMaxSuccess 200 $ \ekey value ->
+    QC.ioProperty $ do
       let trimmedKey = T.take maxEncryptionKeyLength ekey
       encrypted <- encrypt trimmedKey value
       decrypted <- decrypt trimmedKey encrypted

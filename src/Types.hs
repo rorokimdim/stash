@@ -1,6 +1,6 @@
 module Types where
 
-import Data.Aeson ((.=), (.:), FromJSON, ToJSON, object, parseJSON, toJSON, withObject)
+import Data.Aeson ((.:), (.=), FromJSON, ToJSON, object, parseJSON, toJSON, withObject)
 
 import Data.ByteString (ByteString)
 import Data.Time (UTCTime)
@@ -25,29 +25,31 @@ instance Show TextFormat where
   show OrgText      = "org"
   show MarkdownText = "markdown"
 
-data Node = Node {
-  _id :: NodeId,
-  _parent :: NodeId,
-  _hkey :: T.Text,
-  _hvalue :: T.Text,
-  _key :: EncryptedKey,
-  _value :: EncryptedValue,
-  _version :: Integer,
-  _created :: UTCTime,
-  _modified :: UTCTime
-} deriving (Show)
+data Node = Node
+  { _id       :: NodeId
+  , _parent   :: NodeId
+  , _hkey     :: T.Text
+  , _hvalue   :: T.Text
+  , _key      :: EncryptedKey
+  , _value    :: EncryptedValue
+  , _version  :: Integer
+  , _created  :: UTCTime
+  , _modified :: UTCTime
+  }
+  deriving Show
 
-data PlainNode = PlainNode {
-  __id :: NodeId,
-  __parent :: NodeId,
-  __hkey :: T.Text,
-  __hvalue :: T.Text,
-  __key :: PlainKey,
-  __value :: PlainValue,
-  __version :: Integer,
-  __created :: UTCTime,
-  __modified :: UTCTime
-} deriving (Show)
+data PlainNode = PlainNode
+  { __id       :: NodeId
+  , __parent   :: NodeId
+  , __hkey     :: T.Text
+  , __hvalue   :: T.Text
+  , __key      :: PlainKey
+  , __value    :: PlainValue
+  , __version  :: Integer
+  , __created  :: UTCTime
+  , __modified :: UTCTime
+  }
+  deriving Show
 
 instance ToJSON PlainNode where
   toJSON PlainNode { __id = nid, __parent = pid, __hkey = hkey, __hvalue = hvalue, __key = key, __value = value, __version = version, __created = created, __modified = modified }

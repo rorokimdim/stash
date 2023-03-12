@@ -78,10 +78,7 @@ unitTests = testGroup
       DB.updateNode_ conn ekey 1 "a" "apricot"
       DB.updateNode_ conn ekey 1 "a" "acerola"
       nodes <- DB.getAllPlainNodeVersions_ conn ekey 1
-      assertEqual
-        "getAllPlainNodeVersions"
-        ["acerola", "apricot", "avocado", "apple"]
-        [ __value n | n <- nodes ]
+      assertEqual "getAllPlainNodeVersions" ["acerola", "apricot", "avocado", "apple"] [ __value n | n <- nodes ]
       DB.deleteNodes_ conn [1]
       nodes <- DB.getAllPlainNodeVersions_ conn ekey 1
       assertEqual "deleteNodes" 0 $ length nodes

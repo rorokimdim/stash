@@ -4,8 +4,7 @@ module TextTransform
   , toTitle
   , untitleText
   , walkText
-  )
-where
+  ) where
 
 import Data.List (sortBy)
 
@@ -26,11 +25,9 @@ toTitle OrgText      depth t = T.concat [T.pack $ replicate depth '*', " ", t]
 
 -- |Transforms a text value to body for given format.
 toBody :: TextFormat -> Depth -> Body -> Body
-toBody _ 0 t = t
-toBody MarkdownText _ t =
-  T.unlines [ if "#" `T.isPrefixOf` x then " " <> x else x | x <- T.lines t ]
-toBody OrgText depth t =
-  T.unlines [ if "*" `T.isPrefixOf` x then " " <> x else x | x <- T.lines t ]
+toBody _            0     t = t
+toBody MarkdownText _     t = T.unlines [ if "#" `T.isPrefixOf` x then " " <> x else x | x <- T.lines t ]
+toBody OrgText      depth t = T.unlines [ if "*" `T.isPrefixOf` x then " " <> x else x | x <- T.lines t ]
 
 -- |Sorts a list of plain-nodes in lexicographical order.
 sortPlainNodesByKey :: [PlainNode] -> [PlainNode]
@@ -56,9 +53,7 @@ toText format plainNodes = T.intercalate "\n" $ map (fromPlainNode 1 T.empty) to
       cnodes = sortPlainNodesByKey [ idMap HM.! cid | cid <- cids ]
     in if null cnodes
       then ntext
-      else T.strip $ T.intercalate
-        "\n"
-        [ntext, T.intercalate "\n" $ map (fromPlainNode (depth + 1) T.empty) cnodes]
+      else T.strip $ T.intercalate "\n" [ntext, T.intercalate "\n" $ map (fromPlainNode (depth + 1) T.empty) cnodes]
   topIds   = HM.lookupDefault [] 0 childMap
   topNodes = sortPlainNodesByKey [ idMap HM.! tid | tid <- topIds ]
 

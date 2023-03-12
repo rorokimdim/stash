@@ -14,11 +14,10 @@ module IOUtils
   , readValidatedString
   , readValidatedString_
   , UserResponseYesNo(..)
-  )
-where
+  ) where
 import Control.Exception (try)
 import Data.Maybe (fromMaybe)
-import Data.Time (getCurrentTime, diffUTCTime)
+import Data.Time (diffUTCTime, getCurrentTime)
 import System.CPUTime (getCPUTime)
 import System.Environment (getEnv, setEnv)
 import System.FilePath.Posix (pathSeparator, takeDirectory)
@@ -51,11 +50,10 @@ readString prompt mask = readString_ stdin prompt mask
 
 -- |Reads a string from a file handle.
 readString_ :: Handle -> String -> Bool -> IO T.Text
-readString_ handle prompt mask =
-  HL.runInputTBehavior (HL.useFileHandle handle) HL.defaultSettings $ do
-    let reader = if mask then HL.getPassword (Just '*') else HL.getInputLine
-    line <- reader prompt
-    return $ T.pack $ fromMaybe "" line
+readString_ handle prompt mask = HL.runInputTBehavior (HL.useFileHandle handle) HL.defaultSettings $ do
+  let reader = if mask then HL.getPassword (Just '*') else HL.getInputLine
+  line <- reader prompt
+  return $ T.pack $ fromMaybe "" line
 
 -- |Reads a non-empty string from user by prompting for it.
 readNonEmptyString :: String -> Bool -> IO T.Text
@@ -96,11 +94,7 @@ readUserResponseYesNo_ handle prompt = do
         else do
           putStrLn "Invalid response. Must be one of yes/y/no/n/yes-to-all/no-to-all."
           return False
-  response <- readValidatedString_
-    handle
-    (prompt ++ " (yes/y/no/yes-to-all/no-to-all): ")
-    False
-    validtor
+  response <- readValidatedString_ handle (prompt ++ " (yes/y/no/yes-to-all/no-to-all): ") False validtor
   return $ case response of
     "y"          -> URYes
     "yes"        -> URYes

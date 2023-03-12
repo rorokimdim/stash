@@ -21,7 +21,5 @@ main = do
       ]
     , bgroup
       "toText"
-      [ bench "OrgText" $ whnf (TT.toText OrgText) pnodes
-      , bench "MarkdownText" $ whnf (TT.toText MarkdownText) pnodes
-      ]
+      [bench "OrgText" $ whnf (TT.toText OrgText) pnodes, bench "MarkdownText" $ whnf (TT.toText MarkdownText) pnodes]
     ]

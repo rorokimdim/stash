@@ -1,7 +1,6 @@
 module Version
   ( appVersion
-  )
-where
+  ) where
 
 appVersion :: String
-appVersion = "0.3.1"
+appVersion = "0.3.2"
