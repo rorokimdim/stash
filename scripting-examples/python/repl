@@ -5,7 +5,7 @@ echo -n "Enter encryption key: "
 read -rs ekey
 
 PY_COMMAND="python3"
-if command -v iipython3 &> /dev/null
+if command -v ipython3 &> /dev/null
 then
     PY_COMMAND="ipython3"
 fi
