@@ -199,7 +199,7 @@ We will need to first enter encryption-key for the source stash-file followed by
 `stash` exposes a [bencode](https://en.wikipedia.org/wiki/Bencode) interface using [Babashka Pod Protocol](https://github.com/babashka/pods#the-protocol).
 
 If you are familiar with [clojure](https://clojure.org/) or [babashka](https://github.com/borkdude/babashka),
-see [babashka-example](https://github.com/rorokimdim/stash/tree/master/scripting-examples/babashka).
+see [clojure-example](https://github.com/rorokimdim/stash/tree/master/scripting-examples/clojure).
 
 Common-lisp folks see [common-lisp-example](https://github.com/rorokimdim/stash/tree/master/scripting-examples/common-lisp).
 

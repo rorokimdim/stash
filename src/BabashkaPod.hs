@@ -3,8 +3,9 @@ module BabashkaPod where
 import Control.Exception (SomeException, evaluate, try)
 import Control.Monad (unless)
 import Data.Aeson ((.:), (.:?), (.=), FromJSON, ToJSON, decode, encode, object, parseJSON, toJSON, withObject)
-import Data.Maybe (isNothing)
+import Data.Maybe (fromMaybe, isNothing)
 import System.IO (hFlush, isEOF, stdout)
+import Text.RawString.QQ
 
 import qualified Data.BEncode as BE
 import qualified Data.ByteString.Lazy as BSLazy
@@ -50,6 +51,7 @@ instance ToJSON InvalidArgs where
 type PodRequestId = BSLazy.ByteString
 type InvokeVar = BSLazy.ByteString
 type Args = BSLazy.ByteString
+type VarDescription = (BSLazy.ByteString, T.Text, BSLazy.ByteString)
 
 data InvokeRequest = InvokeRequest InvokeVar PodRequestId Args
 
@@ -265,23 +267,22 @@ handleVersionRequest s rid args = do
     ]
 
 handleInvokeRequest :: PodState -> InvokeRequest -> IO (PodState, BE.BEncode)
-handleInvokeRequest s (InvokeRequest "pod.rorokimdim.stash/init" rid args) = handleInitRequest s rid args
+handleInvokeRequest s (InvokeRequest "init"    rid args) = handleInitRequest s rid args
+handleInvokeRequest s (InvokeRequest "version" rid args) = handleVersionRequest s rid args
 handleInvokeRequest s (InvokeRequest _ rid args) | (not . _authenticated) s =
   continueState s
     $ constructBencodeError rid "Not Authenticated. A call to `init` must succeed first."
     $ constructBencodeInvalidArgs args
-handleInvokeRequest s (InvokeRequest "pod.rorokimdim.stash/nodes" rid args) = handleNodesRequest s rid args
-handleInvokeRequest s (InvokeRequest "pod.rorokimdim.stash/node-versions" rid args) =
-  handleNodeVersionsRequest s rid args
-handleInvokeRequest s (InvokeRequest "pod.rorokimdim.stash/tree"    rid args) = handleTreeRequest s rid args
-handleInvokeRequest s (InvokeRequest "pod.rorokimdim.stash/get"     rid args) = handleGetRequest s rid args
-handleInvokeRequest s (InvokeRequest "pod.rorokimdim.stash/set"     rid args) = handleSetRequest s rid args
-handleInvokeRequest s (InvokeRequest "pod.rorokimdim.stash/keys"    rid args) = handleKeysRequest s rid args
-handleInvokeRequest s (InvokeRequest "pod.rorokimdim.stash/add"     rid args) = handleAddRequest s rid args
-handleInvokeRequest s (InvokeRequest "pod.rorokimdim.stash/rename"  rid args) = handleRenameRequest s rid args
-handleInvokeRequest s (InvokeRequest "pod.rorokimdim.stash/update"  rid args) = handleUpdateRequest s rid args
-handleInvokeRequest s (InvokeRequest "pod.rorokimdim.stash/delete"  rid args) = handleDeleteRequest s rid args
-handleInvokeRequest s (InvokeRequest "pod.rorokimdim.stash/version" rid args) = handleVersionRequest s rid args
+handleInvokeRequest s (InvokeRequest "nodes"         rid args) = handleNodesRequest s rid args
+handleInvokeRequest s (InvokeRequest "node-versions" rid args) = handleNodeVersionsRequest s rid args
+handleInvokeRequest s (InvokeRequest "tree"          rid args) = handleTreeRequest s rid args
+handleInvokeRequest s (InvokeRequest "get"           rid args) = handleGetRequest s rid args
+handleInvokeRequest s (InvokeRequest "set"           rid args) = handleSetRequest s rid args
+handleInvokeRequest s (InvokeRequest "keys"          rid args) = handleKeysRequest s rid args
+handleInvokeRequest s (InvokeRequest "add"           rid args) = handleAddRequest s rid args
+handleInvokeRequest s (InvokeRequest "rename"        rid args) = handleRenameRequest s rid args
+handleInvokeRequest s (InvokeRequest "update"        rid args) = handleUpdateRequest s rid args
+handleInvokeRequest s (InvokeRequest "delete"        rid args) = handleDeleteRequest s rid args
 handleInvokeRequest s (InvokeRequest var rid _) =
   continueState s $ constructBencodeError rid "Invalid invoke request" (BE.BString var)
 
@@ -299,9 +300,14 @@ handleRequest s (BE.BDict d) = do
   case op of
     (BE.BString "describe") -> return (s, podDescription rid)
     (BE.BString "invoke"  ) -> handleInvokeRequest s (InvokeRequest invokeVar rid args)
-      where (BE.BString invokeVar) = Map.findWithDefault (BE.BString "") "var" d
+     where
+      (BE.BString invokeVar) = BE.BString $ fromMaybe "" $ BSLazy.stripPrefix (podNamespace <> "/") varName
+      (BE.BString varName  ) = Map.findWithDefault (BE.BString "") "var" d
     (BE.BString "shutdown") -> handleShutdownRequest s rid
     _                       -> return (s, constructBencodeError rid "Invalid op" op)
+
+podNamespace :: BSLazy.ByteString
+podNamespace = "pod.rorokimdim.stash"
 
 podDescription :: PodRequestId -> BE.BEncode
 podDescription rid = BE.BDict $ Map.fromList
@@ -310,27 +316,33 @@ podDescription rid = BE.BDict $ Map.fromList
   , ( "namespaces"
     , BE.BList
       [ BE.BDict $ Map.fromList
-          [ ("name", BE.BString "pod.rorokimdim.stash")
+          [ ("name", BE.BString podNamespace)
           , ( "vars"
             , BE.BList
-              [ BE.BDict $ Map.fromList [("name", BE.BString "init")]
-              , BE.BDict $ Map.fromList [("name", BE.BString "nodes")]
-              , BE.BDict $ Map.fromList [("name", BE.BString "node-versions")]
-              , BE.BDict $ Map.fromList [("name", BE.BString "tree")]
-              , BE.BDict $ Map.fromList [("name", BE.BString "get")]
-              , BE.BDict $ Map.fromList [("name", BE.BString "keys")]
-              , BE.BDict $ Map.fromList [("name", BE.BString "set")]
-              , BE.BDict $ Map.fromList [("name", BE.BString "add")]
-              , BE.BDict $ Map.fromList [("name", BE.BString "rename")]
-              , BE.BDict $ Map.fromList [("name", BE.BString "update")]
-              , BE.BDict $ Map.fromList [("name", BE.BString "delete")]
-              , BE.BDict $ Map.fromList [("name", BE.BString "version")]
+              [ constructVarDescription varInit
+              , constructVarDescription varNodes
+              , constructVarDescription varNodeVersions
+              , constructVarDescription varTree
+              , constructVarDescription varGet
+              , constructVarDescription varKeys
+              , constructVarDescription varSet
+              , constructVarDescription varAdd
+              , constructVarDescription varRename
+              , constructVarDescription varUpdate
+              , constructVarDescription varDelete
+              , constructVarDescription varVersion
               ]
             )
           ]
       ]
     )
   , ("ops", BE.BDict $ Map.fromList [("shutdown", BE.BDict Map.empty)])
+  ]
+
+constructVarDescription :: VarDescription -> BE.BEncode
+constructVarDescription (name, docstring, arglists) = BE.BDict $ Map.fromList
+  [ ("name", BE.BString name)
+  , ("meta", BE.BString ("{" <> ":doc " <> encode docstring <> " :arglists (" <> arglists <> ")}"))
   ]
 
 constructBencodeError :: PodRequestId -> BSLazy.ByteString -> BE.BEncode -> BE.BEncode
@@ -373,3 +385,91 @@ interactWithBencode_ s = do
         else do
           eof <- isEOF
           unless eof $ interactWithBencode_ newState
+
+varInit :: VarDescription
+varInit =
+  ( "init"
+  , [r|Initializes stash.
+
+Accepts a map with the following keys:
+
+encryption-key: encryption key as string
+stash-path: path to stash file
+create-stash-if-missing: whether to create a new stash file if file does not exist
+|]
+  , "[m]"
+  )
+
+varNodes :: VarDescription
+varNodes =
+  ( "nodes"
+  , [r|Gets all nodes stored in stash.
+
+If a parent-node-id is provided, only nodes with that parent-id are returned.
+|]
+  , "[] [parent-id]"
+  )
+
+varNodeVersions :: VarDescription
+varNodeVersions =
+  ( "node-versions"
+  , [r|Gets all version of a node.
+
+stash currently only keeps upto 10 versions.
+|]
+  , "[node-id]"
+  )
+
+
+varTree :: VarDescription
+varTree =
+  ( "tree"
+  , [r|Gets all nodes stored in stash as a tree.
+
+Returns a map of the form {key [node-id value child-tree]}.
+
+If a parent-node-id is provided, only nodes with that parent-id are returned.
+|]
+  , "[] [parent-id]"
+  )
+
+
+varGet :: VarDescription
+varGet = ("get", [r|Gets value corresponding to a path of keys.|], "[& ks]")
+
+varKeys :: VarDescription
+varKeys =
+  ( "keys"
+  , [r|Gets keys under provided parent-ids.
+
+The root parent-id is 0.
+|]
+  , "[& pids]"
+  )
+
+varSet :: VarDescription
+varSet =
+  ( "set"
+  , [r|Sets value of a path of keys.
+
+xs: list of strings. All but the last string are the keys. The last string is the value.
+
+For example, 'set a b ball' will set the value of key b under key a to 'ball'.
+|]
+  , "[xs]"
+  )
+
+varAdd :: VarDescription
+varAdd = ("add", [r|Adds a new node under a parent.|], "[parent-id k v]")
+
+varRename :: VarDescription
+varRename = ("rename", [r|Renames a node.|], "[nid new-name]")
+
+varUpdate :: VarDescription
+varUpdate = ("update", [r|Updates a node's value.|], "[nid v]")
+
+varDelete :: VarDescription
+varDelete = ("delete", [r|Deletes nodes by ids.|], "[& nids]")
+
+varVersion :: VarDescription
+varVersion = ("version", [r|Gets version of stash command.|], "[]")

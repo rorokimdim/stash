@@ -1,0 +1,3 @@
+{:deps {org.clojars.rorokimdim/pp-grid {:mvn/version "0.1.17"}
+        babashka/babashka.pods {:mvn/version "0.2.0"}
+        babashka/fs {:mvn/version "0.3.17"}}}
