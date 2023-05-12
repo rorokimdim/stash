@@ -1,19 +1,22 @@
 (in-package :stash)
 
 ;;
-;; Do this in repl
+;; First, make sure to symlink this
+;; code to your quicklisp projects folder:
+;;
+;; ln -s {path-to-folder-where-this-file-is-in} stash
+;;
+;; Next, do this in repl
 ;;
 ;; (ql:quickload :stash)
 ;; (in-package :stash)
+;;
+;; Then call stash/start to get started.
+;;
+;; (stash/start)
 
 (defparameter *stash-command-path* "stash"
   "Full path to stash command.")
-
-(defvar *stash-path* "sample.stash"
-  "Path to stash file.")
-
-(defvar *stash-encryption-key* "sample-ekey"
-  "Encryption key to use.")
 
 (defvar *stash-pod* nil
   "Active stash pod process.")
@@ -51,9 +54,42 @@
   "Reads from a pod process."
   (bencode:decode (external-program:process-output-stream pod)))
 
+(defun pod/load-functions (pod ns)
+  "Loads all functions in given namespace from a pod process."
+  (let* ((description (pod/describe pod))
+         (namespaces (remove-if-not
+                      (lambda (ht)
+                        (equalp (gethash "name" ht) ns))
+                      (gethash "namespaces" description)))
+         (vars (gethash "vars" (first namespaces)))
+         (parse-meta (lambda (meta)
+                       ;; baby's first edn parser using regex
+                       (list
+                        (ppcre:register-groups-bind (docstring)
+                            (".*:doc\\s+\"(.*?)\"" meta :sharedp t)
+                          (ppcre:regex-replace-all "\\\\n" docstring (format nil "~%")))
+                        (ppcre:register-groups-bind (arglists)
+                            (".*?:arglists\\s+\\((.*?)\\)" meta :sharedp t)
+                          (ppcre:regex-replace-all "&" arglists (format nil "&rest")))))))
+    (loop for x in vars do
+      (let* ((name (gethash "name" x))
+             (meta (funcall parse-meta (gethash "meta" x)))
+             (docstring (first meta))
+             (arglists (second meta))
+             (fn-symbol (intern (concatenate 'string "STASH/" (string-upcase name)))))
+        (setf (symbol-function fn-symbol)
+              (lambda (&rest args)
+                (apply #'stash/invoke name args)))
+        (setf (documentation fn-symbol 'function) (format nil "~a~% args: ~a" docstring arglists))))))
+
 (defun stash/start ()
   "Starts stash process as a babashka pod."
-  (setf *stash-pod* (pod/start *stash-command-path* :environment '(("BABASHKA_POD" . "true")))))
+  (stash/stop)
+  (setf *stash-pod* (pod/start *stash-command-path* :environment '(("BABASHKA_POD" . "true"))))
+  (pod/load-functions *stash-pod* "pod.rorokimdim.stash")
+  (stash/help)
+  (format t "▸ Use (describe 'stash/FUNCTION-NAME) for more on any particular function.~%")
+  (format t "▸ Use (load-stash FILE-PATH ENCRYPTION-KEY) to load a stash file.~%"))
 
 (defun stash/running? ()
   "Checks if stash process is running."
@@ -69,6 +105,7 @@
   "Invokes a stash command by name."
   (unless (stash/running?)
     (stash/start))
+  (clear-input (external-program:process-output-stream *stash-pod*))
   (let ((msg (make-hash-table)))
     (setf (gethash "op" msg) "invoke"
           (gethash "id" msg) (format nil "~a-~a" name (uuid:make-v4-uuid))
@@ -82,109 +119,15 @@
           (error ex-message)
           (jonathan:parse value :as :hash-table)))))
 
-(defun stash/init ()
-  "Initializes stash.
+(defun load-stash (path encryption-key)
+  "Loads stash file from given path.
 
-  The encryption key is read from STASH_ENCRYPTION_KEY environment variable.
-
-  If `STASH_FILE_PATH` does not exist, it will be created."
+  If PATH does not exist, it will be created."
   (let ((msg (make-hash-table)))
-    (setf (gethash "encryption-key" msg) *stash-encryption-key*
-          (gethash "stash-path" msg) *stash-path*
+    (setf (gethash "encryption-key" msg) encryption-key
+          (gethash "stash-path" msg) path
           (gethash "create-stash-if-missing" msg) t)
     (stash/invoke "init" msg)))
-
-(defun stash/version ()
-  "Gets version of stash command."
-  (stash/invoke "version"))
-
-(defun stash/nodes (&optional (parent-id 0))
-  "Gets all nodes stored in stash.
-
-  If a parent-node-id is provided, only nodes with that parent-id are returned."
-  (stash/invoke "nodes" parent-id))
-
-(defun stash/tree (&optional (parent-id 0))
-  "Gets all nodes stored in stash as a tree.
-
-  Returns a hash-table of the form {key: [node-id, value, child-tree]}.
-
-  If a parent-node-id is provided, only nodes with that parent-id are returned."
-  (stash/invoke "tree" parent-id))
-
-(defun stash/tree->tree-on-id (stree)
-  "Converts a stash-tree to an equivalent tree indexed on node-ids."
-  (let ((ht (make-hash-table)))
-    (loop for k being the hash-keys in stree
-            using (hash-value (node-id node-value child-stree))
-          do
-             (let ((m (make-hash-table)))
-               (setf (gethash :key m) k
-                     (gethash :value m) node-value
-                     (gethash :children m) (if (not child-stree)
-                                               (make-hash-table)
-                                               (stash/tree->tree-on-id child-stree)))
-               (setf (gethash node-id ht) m)))
-    ht))
-
-(defun stash/tree-on-id (&optional (parent-id 0))
-  "Gets all nodes stored in stash as a tree indexed by node-ids.
-
-  Returns a hash-map of the form {id {:key key :value value :children child-tree}}.
-
-  If a parent-node-id is provided, only nodes with that parent-id are returned."
-  (stash/tree->tree-on-id (stash/tree parent-id)))
-
-(defun stash/tree-on-id->paths (tree-on-id)
-  "Gets paths to nodes in a tree-on-id data-structure.
-
-  See stash/tree-on-id function."
-  (let ((paths (make-hash-table)))
-    (labels ((inner (tree pid)
-               (loop for k being the hash-keys in tree using (hash-value v)
-                     do
-                        (setf (gethash k paths) (append (gethash pid paths nil)
-                                                        (list k)))
-                        (when (gethash :children v)
-                          (inner (gethash :children v) k)))))
-      (inner tree-on-id 0))
-    paths))
-
-(defun stash/node-versions (node-id)
-  "Gets all version of a node.
-
-  stash currently only keeps upto 10 versions."
-  (stash/invoke "node-versions" node-id))
-
-(defun stash/get (&rest keys)
-  "Gets value corresponding to a path of keys."
-  (apply #'stash/invoke "get" keys))
-
-(defun stash/keys (&rest parent-ids)
-  "Gets keys under provided parent-ids.
-
-  The root parent-id is 0."
-  (apply #'stash/invoke "keys" parent-ids))
-
-(defun stash/set (keys value)
-  "Sets value of a path of keys."
-  (apply #'stash/invoke "set" (append keys (list value))))
-
-(defun stash/add (parent-id key value)
-  "Adds a new node under a parent."
-  (stash/invoke "add" parent-id key value))
-
-(defun stash/rename (node-id new-name)
-  "Renames a node."
-  (stash/invoke "rename" node-id new-name))
-
-(defun stash/update (node-id value)
-  "Updates a node's value."
-  (stash/invoke "update" node-id value))
-
-(defun stash/delete (&rest node-ids)
-  "Deletes nodes by ids."
-  (apply #'stash/invoke "delete" node-ids))
 
 (defun short-function-documentation (fn)
   (first (uiop:split-string (documentation fn 'function)
@@ -197,15 +140,12 @@
                           (all-function-symbols :stash)))
         (table (t:make-table '(function description) :header "Stash")))
     (loop for fn in stash-functions
-          do
-             (t:add-row table (list fn (short-function-documentation fn)))
-          )
+          do (t:add-row table (list fn (short-function-documentation fn))))
     (t:display table)))
 
 (defun curry (fn &rest init-args)
   (lambda (&rest args)
     (apply fn (append init-args args))))
-
 
 (defun all-function-symbols (package-name)
   "Retrieves all function symbols from a package.
