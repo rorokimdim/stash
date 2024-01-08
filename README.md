@@ -1,3 +1,17 @@
+
+```
+Announcement and a plug:
+
+I will not be making major changes to stash.
+But I will be fixing bugs and responding to issues, as I have time.
+
+There is a similar software I am working on. Please checkout
+https://textlambda.com/. It is not open-source (except for the cryptography code)
+but it will be mostly free. You can send me feedback at early-access@textlambda.com.
+
+Thank You!
+```
+
 # stash
 
 `stash` is a command line program for storing text data in encrypted form.
