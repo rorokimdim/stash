@@ -64,12 +64,12 @@ jobs:
           stack-no-global: true
 
       - if: matrix.os != 'windows-latest'
-        name: Build artifact for ubuntu-latest / macOS-latest
+        name: Build artifact for ubuntu / macOS
         run: |
           mkdir dist
           stack install --local-bin-path dist/
           cp stash.1 dist/
-          zip -r -j stash-${{ runner.os }}.zip dist/
+          zip -r -j stash-${{ matrix.os }}.zip dist/
 
       - if: matrix.os == 'windows-latest'
         name: Build artifact for windows-latest
@@ -78,7 +78,7 @@ jobs:
           del package.yaml
           move package.windows.yaml package.yaml
           stack install --local-bin-path dist/
-          powershell Compress-Archive dist\stash.exe stash-${{ runner.os }}.zip
+          powershell Compress-Archive dist\stash.exe stash-${{ matrix.os }}.zip
 
       - name: Load Release URL File from release job
         uses: actions/download-artifact@v3
@@ -97,6 +97,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.get_release_info.outputs.upload_url }}
-          asset_path: stash-${{ runner.os }}.zip
-          asset_name: stash-${{ runner.os }}.zip
+          asset_path: stash-${{ matrix.os }}.zip
+          asset_name: stash-${{ matrix.os }}.zip
           asset_content_type: application/zip
