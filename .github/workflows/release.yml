@@ -69,7 +69,7 @@ jobs:
           mkdir dist
           stack install --local-bin-path dist/
           cp stash.1 dist/
-          zip -r -j stash-${{ matrix.os }}.zip dist/
+          zip -r -j stash-linux.zip dist/
 
       - if: matrix.os == 'macOS-latest'
         name: Build artifact for macOS-latest
@@ -77,7 +77,7 @@ jobs:
           mkdir dist
           stack --arch aarch64 install --local-bin-path dist/
           cp stash.1 dist/
-          zip -r -j stash-${{ matrix.os }}.zip dist/
+          zip -r -j stash-macos-aarch64.zip dist/
 
       - if: matrix.os == 'macOS-13'
         name: Build artifact for macOS-13
@@ -85,7 +85,7 @@ jobs:
           mkdir dist
           stack --arch x86_64 install --local-bin-path dist/
           cp stash.1 dist/
-          zip -r -j stash-${{ matrix.os }}.zip dist/
+          zip -r -j stash-macos-x86-64.zip dist/
 
       - if: matrix.os == 'windows-latest'
         name: Build artifact for windows-latest
@@ -94,7 +94,7 @@ jobs:
           del package.yaml
           move package.windows.yaml package.yaml
           stack install --local-bin-path dist/
-          powershell Compress-Archive dist\stash.exe stash-${{ matrix.os }}.zip
+          powershell Compress-Archive dist\stash.exe stash-windows.zip
 
       - name: Load Release URL File from release job
         uses: actions/download-artifact@v3
