@@ -17,8 +17,7 @@
 #
 # resolver: ./custom-snapshot.yaml
 # resolver: https://example.com/snapshots/2018-01-01.yaml
-resolver:
-  url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/18/27.yaml
+resolver: lts-20.26
 
 # User packages to be built.
 # Various formats can be used as shown in the example below.
@@ -43,13 +42,14 @@ packages:
 extra-deps:
 - bencode-0.6.1.1
 - crypto-simple-0.1.0.0
-- direct-sqlite-2.3.26
 - Hclip-3.0.0.4
 - pretty-diff-0.2.0.2
 - regex-posix-clib-2.7
 - sqlite-simple-0.4.18.0
 - tabl-1.0.3
 - random-strings-0.1.1.0
+- semigroups-0.19.2@sha256:4eaa22de527068e5a323c4ba5411e24b60386507730d0445865ab71b35e5f95e,6539
+- brick-0.71.1@sha256:636ae6f85cef5ec0353d428e7adeb0c3688b6c8cb406bf32d6c72d8968de5ab0,16372
 
 # Override default flag values for local packages and extra-deps
 # flags: {}

@@ -91,7 +91,7 @@ executables:
     - stash
     - Hclip
     - vty
-    - brick
+    - brick < 0.72
     - editor-open
     when:
     - condition: false

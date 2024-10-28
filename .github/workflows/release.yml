@@ -46,7 +46,7 @@ jobs:
 
     steps:
       - name: Check out code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Set tag name
         uses: olegtarasov/get-tag@v2.1.1
@@ -56,7 +56,7 @@ jobs:
           tagRegexGroup: 1
 
       - name: Setup Haskell
-        uses: haskell/actions/setup@v1.2.9
+        uses: haskell/actions/setup@v2
         id: setup-haskell-stack
         with:
           ghc-version: ${{ matrix.ghc }}

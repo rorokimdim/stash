@@ -254,7 +254,6 @@ handleArrowKey direction state = do
     si = case direction of
       UP   -> decrement osi
       DOWN -> increment osi
-      _    -> osi
   selectedChildKeys <- getSelectedChildKeys ekey plainNodes si
   currentPath       <- getCurrentPath ekey plainNodes si
   return $ state
