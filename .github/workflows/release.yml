@@ -63,11 +63,27 @@ jobs:
           enable-stack: true
           stack-no-global: true
 
-      - if: matrix.os != 'windows-latest'
-        name: Build artifact for ubuntu / macOS
+      - if: matrix.os == 'ubuntu-latest'
+        name: Build artifact for ubuntu
         run: |
           mkdir dist
           stack install --local-bin-path dist/
+          cp stash.1 dist/
+          zip -r -j stash-${{ matrix.os }}.zip dist/
+
+      - if: matrix.os == 'macOS-latest'
+        name: Build artifact for macOS-latest
+        run: |
+          mkdir dist
+          stack --arch aarch64 install --local-bin-path dist/
+          cp stash.1 dist/
+          zip -r -j stash-${{ matrix.os }}.zip dist/
+
+      - if: matrix.os == 'macOS-13'
+        name: Build artifact for macOS-13
+        run: |
+          mkdir dist
+          stack --arch x86_64 install --local-bin-path dist/
           cp stash.1 dist/
           zip -r -j stash-${{ matrix.os }}.zip dist/
 
